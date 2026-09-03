@@ -9,6 +9,15 @@ export type Team = {
   categoryId: CategoryId;
   checkinStatus: CheckinStatus;
 };
+export function compareParticipantNumbers(
+  left: Pick<Team, "number">,
+  right: Pick<Team, "number">,
+) {
+  return left.number.localeCompare(right.number, "en", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
 export const heatCount = (category: CategoryId) =>
   category === "program" ? 3 : 2;
 export const heatNumbers = (category: CategoryId) =>
@@ -45,30 +54,35 @@ export type Attempt = {
 export const categories: {
   id: CategoryId;
   name: string;
+  eventName: string;
   subtitle: string;
   court: string;
 }[] = [
   {
     id: "preschool",
     name: "幼兒簡易機械組",
+    eventName: "寶礦力水得足球世界盃",
     subtitle: "熱血世界盃",
     court: "A 場",
   },
   {
     id: "power",
     name: "動力機械組",
+    eventName: "寶礦力水得大搬運",
     subtitle: "寶礦力水得大搬運",
     court: "B 場",
   },
   {
     id: "program",
     name: "程式機械組",
+    eventName: "寶礦力水得智慧物流折返跑",
     subtitle: "智慧物流折返跑",
     court: "C 場",
   },
   {
     id: "creative",
     name: "科創機器人組",
+    eventName: "決戰寶礦力",
     subtitle: "決戰寶礦力",
     court: "D 場",
   },

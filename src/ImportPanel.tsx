@@ -13,14 +13,17 @@ import {
 import { categories, type CategoryId, type Team } from "./domain";
 import { parseTeams, downloadCSV, participantNumber } from "./csv";
 import type { ImportTeam } from "./data";
+import { CategoryTabs } from "./CategoryTabs";
 export function ImportPanel({
   teams,
   categoryId,
+  onCategoryChange,
   onImport,
   disabled,
 }: {
   teams: Team[];
   categoryId: CategoryId;
+  onCategoryChange: (categoryId: CategoryId) => void;
   onImport: (rows: ImportTeam[]) => Promise<void>;
   disabled: boolean;
 }) {
@@ -65,95 +68,95 @@ export function ImportPanel({
     }
   }
   return (
-    <section className="panel form-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">ROSTER IMPORT</p>
-          <h2>賽前參賽者名單</h2>
+    <>
+      <CategoryTabs value={categoryId} onChange={onCategoryChange} />
+      <section className="panel form-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">ROSTER IMPORT</p>
+            <h2>賽前參賽者名單</h2>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadCSV("TTRA-" + category.name + "名單範本.csv", [
+                ["參賽編號", "姓名", "梯次"],
+                [participantNumber(categoryId, 1), "陳宥安", 1],
+              ])
+            }
+          >
+            <Download />
+            下載範本
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          onClick={() =>
-            downloadCSV("TTRA-" + category.name + "-新版三欄名單範本.csv", [
-              ["參賽編號", "姓名", "梯次"],
-              [participantNumber(categoryId, 1), "陳宥安", 1],
-            ])
-          }
-        >
-          <Download />
-          下載新版三欄範本
-        </Button>
-      </div>
-      <div className="form-body">
-        <p className="hint">
-          目前匯入組別：<strong>{category.name}</strong>。CSV
-          不必填組別，系統會依目前選擇自動帶入；編號前綴若不符會整批拒絕。使用
-          UTF-8 CSV。Excel 可另存為「CSV
-          UTF-8」。每列一位參賽者，以參賽編號區分同名者。姓名與成績會公開，請確認可公開後再匯入；不要上傳電話、家長聯絡方式等資料。範本姓名為虛構，匯入前請替換。
-        </p>
-        <p className="hint">
-          梯次請填數字：程式機械組 1–3，其餘組別
-          1–2。梯次只分隔名單，不分開排名。
-        </p>
-        <p className="hint">
-          新版範本固定只有三欄：<strong>參賽編號、姓名、梯次</strong>。
-        </p>
-        <label className="field">
-          <span>選擇參賽者 CSV 檔案</span>
-          <Input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => void read(e.target.files?.[0])}
-          />
-        </label>
-        {error && (
-          <p role="alert" className="error-message">
-            {error}
+        <div className="form-body">
+          <p className="hint">
+            請先用上方按鈕選擇比賽項目。CSV
+            不必填組別，系統會依選擇的項目自動帶入；編號前綴若不符會整批拒絕。使用
+            UTF-8 CSV。Excel 可另存為「CSV
+            UTF-8」。每列一位參賽者，以參賽編號區分同名者。姓名與成績會公開，請確認可公開後再匯入；不要上傳電話、家長聯絡方式等資料。範本姓名為虛構，匯入前請替換。
           </p>
-        )}
-        {success && (
-          <p role="status" className="success-message">
-            {success}
+          <p className="hint">
+            梯次請填數字：程式機械組 1–3，其餘組別
+            1–2。梯次只分隔名單，不分開排名。
           </p>
-        )}
-        {rows.length > 0 && (
-          <>
-            <p>
-              即將匯入「{category.name}」共 {rows.length} 人，確認後才會寫入。
+          <label className="field">
+            <span>選擇參賽者 CSV 檔案</span>
+            <Input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(e) => void read(e.target.files?.[0])}
+            />
+          </label>
+          {error && (
+            <p role="alert" className="error-message">
+              {error}
             </p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>參賽編號</TableHead>
-                  <TableHead>姓名</TableHead>
-                  <TableHead>組別</TableHead>
-                  <TableHead>梯次</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.number}>
-                    <TableCell>{r.number}</TableCell>
-                    <TableCell>{r.name}</TableCell>
-                    <TableCell>
-                      {categories.find((c) => c.id === r.categoryId)?.name}
-                    </TableCell>
-                    <TableCell>第 {r.heat} 梯</TableCell>
+          )}
+          {success && (
+            <p role="status" className="success-message">
+              {success}
+            </p>
+          )}
+          {rows.length > 0 && (
+            <>
+              <p>
+                即將匯入「{category.name}」共 {rows.length} 人，確認後才會寫入。
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>參賽編號</TableHead>
+                    <TableHead>姓名</TableHead>
+                    <TableHead>組別</TableHead>
+                    <TableHead>梯次</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <Button
-              className="primary-action"
-              disabled={disabled || busy}
-              onClick={submit}
-            >
-              <Upload />
-              {busy ? "匯入中…" : "確認匯入 " + rows.length + " 人"}
-            </Button>
-          </>
-        )}
-      </div>
-    </section>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r.number}>
+                      <TableCell>{r.number}</TableCell>
+                      <TableCell>{r.name}</TableCell>
+                      <TableCell>
+                        {categories.find((c) => c.id === r.categoryId)?.name}
+                      </TableCell>
+                      <TableCell>第 {r.heat} 梯</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Button
+                className="primary-action"
+                disabled={disabled || busy}
+                onClick={submit}
+              >
+                <Upload />
+                {busy ? "匯入中…" : "確認匯入 " + rows.length + " 人"}
+              </Button>
+            </>
+          )}
+        </div>
+      </section>
+    </>
   );
 }

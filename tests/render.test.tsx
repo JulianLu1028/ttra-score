@@ -6,6 +6,7 @@ import { ScoreForm } from "../src/ScoreForm";
 import { ImportPanel } from "../src/ImportPanel";
 import { categories, type Team } from "../src/domain";
 import AcademicApp from "../src/AcademicApp";
+import { CategoryTabs } from "../src/CategoryTabs";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("非瀏覽器渲染檢查", () => {
@@ -44,17 +45,30 @@ describe("非瀏覽器渲染檢查", () => {
       <ImportPanel
         teams={[]}
         categoryId="preschool"
+        onCategoryChange={() => {}}
         onImport={async () => {}}
         disabled={false}
       />,
     );
     expect(html).toContain("賽前參賽者名單");
     expect(html).toContain("每列一位參賽者");
-    expect(html).toContain("CSV 不必填組別");
-    expect(html).toContain("下載新版三欄範本");
-    expect(html).toContain("新版範本固定只有三欄");
+    expect(html).toContain("請先用上方按鈕選擇比賽項目");
+    expect(html).not.toContain("目前匯入組別");
+    expect(html).toContain("寶礦力水得足球世界盃");
+    expect(html).toContain("下載範本");
+    expect(html).not.toContain("新版範本固定只有三欄");
     expect(html).toContain("姓名與成績會公開");
     expect(html).not.toMatch(/隊伍|隊名/);
+  });
+  it("項目按鈕使用正式比賽名稱", () => {
+    const html = renderToString(
+      <CategoryTabs value="creative" onChange={() => {}} />,
+    );
+    expect(html).toContain("寶礦力水得足球世界盃");
+    expect(html).toContain("寶礦力水得大搬運");
+    expect(html).toContain("寶礦力水得智慧物流折返跑");
+    expect(html).toContain("決戰寶礦力");
+    expect(html).toContain("科創機器人組");
   });
   for (const c of categories)
     it(c.name + " 表單可渲染", () => {

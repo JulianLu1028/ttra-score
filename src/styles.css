@@ -658,7 +658,7 @@ h2 {
 .category-tabs button {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 12px;
   padding: 17px 12px;
   border: 1px solid #dce3d7;
@@ -667,11 +667,25 @@ h2 {
   color: #607461;
   font-size: 14px;
   font-weight: 650;
-  white-space: nowrap;
+  line-height: 1.35;
+  text-align: left;
 }
-.category-tabs button span {
+.category-tabs .category-index {
+  flex: 0 0 auto;
   font-size: 11px;
   opacity: 0.65;
+}
+.category-tabs .category-label {
+  display: flex;
+  flex-direction: column;
+  font-size: inherit;
+  overflow-wrap: anywhere;
+}
+.category-tabs .category-label small {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.78;
 }
 .category-tabs button.selected {
   background: #164e42;

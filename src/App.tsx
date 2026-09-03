@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   categories,
+  compareParticipantNumbers,
   heatNumbers,
   categoryStats,
   leaderboard,
@@ -62,6 +63,7 @@ import { isDemoMode, supabase } from "./supabase";
 import { STAFF_LOGIN_ID } from "./runtime-config";
 import { ScoreForm } from "./ScoreForm";
 import { ImportPanel } from "./ImportPanel";
+import { CategoryTabs } from "./CategoryTabs";
 import { downloadCSV } from "./csv";
 const checkinLabels: Record<CheckinStatus, string> = {
   pending: "尚未報到",
@@ -244,20 +246,25 @@ export default function App() {
   const category = categories.find((c) => c.id === group)!;
   const results = useMemo(() => {
     const local = leaderboard(teams, attempts, group);
-    if (isDemoMode || !serverResults.length) return local;
-    return local.map((r) => {
-      const s = serverResults.find((x) => x.team_id === r.team.id);
-      return s
-        ? {
-            ...r,
-            primary: s.primary_score,
-            secondary: s.secondary_score,
-            qualified: s.qualified,
-            complete: s.complete,
-            rank: s.rank,
-          }
-        : r;
-    });
+    const merged =
+      isDemoMode || !serverResults.length
+        ? local
+        : local.map((r) => {
+            const s = serverResults.find((x) => x.team_id === r.team.id);
+            return s
+              ? {
+                  ...r,
+                  primary: s.primary_score,
+                  secondary: s.secondary_score,
+                  qualified: s.qualified,
+                  complete: s.complete,
+                  rank: s.rank,
+                }
+              : r;
+          });
+    return [...merged].sort((left, right) =>
+      compareParticipantNumbers(left.team, right.team),
+    );
   }, [teams, attempts, serverResults, group]);
   const visible = results.filter(
     (r) =>
@@ -357,6 +364,12 @@ export default function App() {
     } catch {
       /* Preferences are optional. */
     }
+  }
+  function selectCategory(categoryId: CategoryId) {
+    setGroup(categoryId);
+    setSelected(null);
+    setQuery("");
+    setHeatFilter("all");
   }
   const stats = categoryStats(teams, attempts, group);
   const statusLabel = !online
@@ -568,6 +581,7 @@ export default function App() {
                 key={group}
                 teams={teams}
                 categoryId={group}
+                onCategoryChange={selectCategory}
                 onImport={importRoster}
                 disabled={!online}
               />
@@ -607,24 +621,7 @@ export default function App() {
               </section>
             ) : (
               <>
-                <nav className="category-tabs" aria-label="競賽組別">
-                  {categories.map((g, i) => (
-                    <button
-                      key={g.id}
-                      onClick={() => {
-                        setGroup(g.id);
-                        setSelected(null);
-                        setQuery("");
-                        setHeatFilter("all");
-                      }}
-                      className={group === g.id ? "selected" : ""}
-                      aria-pressed={group === g.id}
-                    >
-                      <span>0{i + 1}</span>
-                      {g.name}
-                    </button>
-                  ))}
-                </nav>
+                <CategoryTabs value={group} onChange={selectCategory} />
                 {selected && route === "staff" ? (
                   <>
                     <Button

@@ -32,7 +32,7 @@ export const demoTeams: Team[] = (
   (categoryId === "preschool" ? [] : names.slice(c * 6, (c + 1) * 6)).map(
     (name, i) => ({
       id: categoryId + "-" + (i + 1),
-      number: String(c + 1) + String(i + 1).padStart(2, "0"),
+      number: "ABCD"[c] + String(i + 1).padStart(3, "0"),
       name,
       heat: (i % (categoryId === "program" ? 3 : 2)) + 1,
       categoryId,

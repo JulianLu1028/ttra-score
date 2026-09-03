@@ -7,6 +7,7 @@ import {
   normalizeScore,
   categoryStats,
   heatNumbers,
+  compareParticipantNumbers,
   type Team,
   type Attempt,
   type CategoryId,
@@ -38,6 +39,12 @@ const attempt = (
   data,
 });
 describe("四組規則", () => {
+  it("選手顯示順序依參賽編號，不受名次影響", () => {
+    const entrants = [team("creative", "D010"), team("creative", "D002")];
+    expect(
+      [...entrants].sort(compareParticipantNumbers).map((row) => row.number),
+    ).toEqual(["D002", "D010"]);
+  });
   it("幼兒取最佳回合且不排名", () => {
     const ts = [team("preschool")],
       as = [
