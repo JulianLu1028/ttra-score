@@ -3,18 +3,24 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/postcss";
 import { fileURLToPath } from "node:url";
 // A static SPA is required for the user's GitHub Pages hosting.
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode, command }) => ({
   base: process.env.BASE_PATH || "./",
   plugins: [
     react(),
     {
       name: "share-metadata",
       configResolved() {
+        if (command === "build" && mode !== "production")
+          throw new Error("僅允許 production 建置，測試資料不可部署");
         const env = loadEnv(mode, process.cwd());
         const url = process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL;
         const key =
           process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
           env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        if (command === "build" && (!url || !key))
+          throw new Error(
+            "正式建置必須設定 Supabase URL 與 publishable key，不提供示範部署",
+          );
         if (url || key) {
           if (!url || !key)
             throw new Error("Supabase URL 與 publishable key 必須一起設定");

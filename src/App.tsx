@@ -59,6 +59,7 @@ import {
   type ServerResult,
 } from "./data";
 import { isDemoMode, supabase } from "./supabase";
+import { STAFF_LOGIN_ID } from "./runtime-config";
 import { ScoreForm } from "./ScoreForm";
 import { ImportPanel } from "./ImportPanel";
 import { downloadCSV } from "./csv";
@@ -171,30 +172,74 @@ export default function App() {
   }, [refresh]);
   useEffect(() => {
     if (!supabase) return;
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthLoading(false);
-    });
+    let live = true,
+      authChanged = false;
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (live && !authChanged) {
+          setSession(data.session);
+          setAuthLoading(Boolean(data.session));
+        }
+      })
+      .catch(() => {
+        if (live && !authChanged) {
+          setAuthLoading(false);
+          setError("登入狀態確認失敗，請重新整理後再試。");
+        }
+      });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => subscription.unsubscribe();
+    } = supabase.auth.onAuthStateChange((_e, s) => {
+      authChanged = true;
+      setStaff(null);
+      setSelected(null);
+      setDetail(null);
+      setAudit([]);
+      setAuthLoading(Boolean(s));
+      setSession(s);
+    });
+    return () => {
+      live = false;
+      subscription.unsubscribe();
+    };
   }, []);
   useEffect(() => {
     if (isDemoMode) return;
     setStaff(null);
-    if (!session) return;
+    if (!session) {
+      setAuthLoading(false);
+      return;
+    }
+    let live = true;
     setAuthLoading(true);
     void getStaff()
-      .then(setStaff)
-      .catch((e) => setError(e.message))
-      .finally(() => setAuthLoading(false));
+      .then((value) => {
+        if (live) setStaff(value);
+      })
+      .catch((e) => {
+        if (live) setError(e.message);
+      })
+      .finally(() => {
+        if (live) setAuthLoading(false);
+      });
+    return () => {
+      live = false;
+    };
   }, [session]);
   useEffect(() => {
+    let live = true;
     if (tab === "audit" && staff?.role === "admin" && !isDemoMode)
       void loadAudit()
-        .then(setAudit)
-        .catch((e) => setError(e.message));
+        .then((value) => {
+          if (live) setAudit(value);
+        })
+        .catch((e) => {
+          if (live) setError(e.message);
+        });
+    return () => {
+      live = false;
+    };
   }, [tab, staff]);
   const category = categories.find((c) => c.id === group)!;
   const results = useMemo(() => {
@@ -230,6 +275,9 @@ export default function App() {
   const canScore = staff && (staff.role === "judge" || staff.role === "admin");
   const canCheck =
     staff && (staff.role === "checkin" || staff.role === "admin");
+  const canUseWorkspace = Boolean(
+    staff && (isDemoMode || (session && !authLoading)),
+  );
   async function checkin(t: Team, status: CheckinStatus) {
     setCheckinBusy(t.id);
     setError("");
@@ -339,16 +387,17 @@ export default function App() {
             檢定專區
           </a>
           <span className="header-date">10.04 SUN · 臺中清水高中</span>
-          <Button
-            variant="outline"
-            onClick={() => {
-              location.hash =
-                route === "staff" ? "/challenge" : "/challenge/staff";
-            }}
-          >
-            {route === "staff" ? "家長看成績" : "工作人員入口"}
-            <ArrowUpRight />
-          </Button>
+          {route === "staff" && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                location.hash = "/challenge";
+              }}
+            >
+              家長看成績
+              <ArrowUpRight />
+            </Button>
+          )}
         </div>
       </header>
       <main className="page">
@@ -380,7 +429,7 @@ export default function App() {
             目前沒有網路。畫面為上次資料，連線恢復前無法送出成績。
           </div>
         )}
-        {route === "staff" && !isDemoMode && (!session || !staff) && (
+        {route === "staff" && !canUseWorkspace && (
           <section className="panel auth-panel">
             {authLoading ? (
               <p>正在確認權限…</p>
@@ -389,11 +438,13 @@ export default function App() {
                 <ShieldCheck />
                 <h2>尚未取得工作人員權限</h2>
                 <p className="muted">
-                  {session.user.email} 已登入，請主辦人加入工作人員名單。
+                  已驗證密碼，但尚未授予操作權限，請聯絡主辦人。
                 </p>
                 <Button
                   variant="outline"
-                  onClick={() => void supabase!.auth.signOut()}
+                  onClick={() =>
+                    void supabase!.auth.signOut({ scope: "local" })
+                  }
                 >
                   登出
                 </Button>
@@ -403,7 +454,7 @@ export default function App() {
             )}
           </section>
         )}
-        {(route === "public" || staff) && (
+        {(route === "public" || canUseWorkspace) && (
           <>
             <section className="stats">
               <div>
@@ -500,7 +551,9 @@ export default function App() {
                   <Button
                     variant="ghost"
                     className="logout"
-                    onClick={() => void supabase!.auth.signOut()}
+                    onClick={() =>
+                      void supabase!.auth.signOut({ scope: "local" })
+                    }
                   >
                     <LogOut />
                     登出
@@ -970,32 +1023,32 @@ export default function App() {
     </>
   );
 }
-export function Login({
-  returnTo = "#/challenge/staff",
-}: {
-  returnTo?: string;
-}) {
-  const [email, setEmail] = useState(""),
+export function Login() {
+  const [password, setPassword] = useState(""),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(""),
     [error, setError] = useState("");
   async function send(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
-      const { error } = await supabase!.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: location.origin + location.pathname + returnTo,
-        },
+      if (!supabase) throw new Error("正式連線尚未設定");
+      const { error } = await supabase.auth.signInWithPassword({
+        email: STAFF_LOGIN_ID,
+        password,
       });
-      if (error) throw error;
-      setMessage("登入連結已寄出，請從這台裝置開啟 Email。");
-    } catch (e) {
-      setError((e as Error).message);
+      if (error) {
+        setError(
+          error.status === 429
+            ? "嘗試次數過多，請稍候再試。"
+            : "登入失敗，請確認工作人員密碼與網路連線；若仍無法登入，請聯絡主辦人。",
+        );
+      }
+    } catch {
+      setError("暫時無法登入，請確認網路連線或聯絡主辦人。");
     } finally {
+      setPassword("");
       setBusy(false);
     }
   }
@@ -1003,28 +1056,26 @@ export function Login({
     <>
       <ShieldCheck size={30} />
       <h2>工作人員登入</h2>
-      <p className="muted">請使用主辦人登記的 Email。家長查看成績不需登入。</p>
+      <p className="muted">
+        請輸入主辦人提供的共用密碼。家長查看成績不需登入。
+      </p>
       <form onSubmit={send}>
         <label className="field">
-          <span>Email</span>
+          <span>工作人員密碼</span>
           <Input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
-            placeholder="judge@example.com"
+            disabled={busy}
+            placeholder="輸入工作人員密碼"
           />
         </label>
         <Button type="submit" className="primary-action" disabled={busy}>
-          {busy ? "寄送中…" : "寄送一次性登入連結"}
+          {busy ? "驗證中…" : "登入工作台"}
         </Button>
       </form>
-      {message && (
-        <p role="status" className="success-message">
-          {message}
-        </p>
-      )}
       {error && (
         <p role="alert" className="error-message">
           {error}

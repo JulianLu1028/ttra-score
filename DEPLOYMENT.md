@@ -7,50 +7,33 @@
 1. 建立專用專案，勿將 migration 套至其他正在使用的資料庫。
 2. 新專案依序在 SQL Editor 執行 supabase/migrations/001_competition.sql、002_heats_and_privacy.sql、003_academic.sql，各一次。已套用 001 的專案先備份，再只執行 002、003；不要重跑 001。002 會移除既有學校欄及稽核中的學校資料，並將既有參賽者暫設第 1 梯，須依正式名單核對調整；之後的新匯入必須明確填寫梯次。
 3. API Exposed schemas 保持 public，不要暴露 private。
-4. Auth URL Configuration 設定 Site URL 及 Redirect URLs：
-   - https://ACCOUNT.github.io/REPOSITORY/
-   - 本機測試：http://127.0.0.1:5173/
-5. 設定自訂 SMTP、測試寄信與配額。不要依賴未配置的測試寄信服務。
-6. Auth / Users 建立或邀請工作人員，前端不開放自行註冊。
+4. Auth 設定關閉公開註冊與匿名登入。不能只隱藏前端註冊按鈕；後端也必須禁止註冊。
+5. Auth / Users 由專案擁有者手動新增固定技術身份 `staff@ttra-score.invalid`，設為已確認，直接在後台設定並保存強密碼（建議至少 12 字元）。這不是個人信箱，不寄邀請信，也不需要裁判填 Email；此登入流程不使用 SMTP。資料庫管理密碼和裁判密碼必須不同。
+6. 前端只收共用密碼，Supabase Auth 驗證固定技術身份。身份名稱是公開識別字，不是秘密；密碼、資料庫密碼、service-role key 都不可放入 GitHub、前端環境變數或對話。
 7. 由 SQL Editor 為已建立的 Auth user 加入角色，替換 UUID：
 
        insert into private.staff_roles(user_id,role,category_ids)
        values ('AUTH-USER-UUID','admin','{}');
 
-   分組裁判：
-
-       insert into private.staff_roles(user_id,role,category_ids)
-       values ('AUTH-USER-UUID','judge',array['power']);
-
-   報到人員：
-
-       insert into private.staff_roles(user_id,role,category_ids)
-       values ('AUTH-USER-UUID','checkin','{}');
-
-   空 category_ids 表示全部組別；admin 有全部權限。角色由擁有者管理，前端不能自行升權。
-
-   如需讓某位裁判操作學科成績，另外授權（保留其原挑戰賽分組權限）：
-
-       update private.staff_roles set can_grade_academic=true
-       where user_id='AUTH-USER-UUID' and role='judge';
-
-   沒有此旗標的一般裁判、報到人員、匿名家長不能取得未公布的學科草稿。管理員不需另外開旗標。
+   本次所有工作人員共用管理權限，可報到、匯入、登分、公布學科與查看稽核。角色由專案擁有者管理，前端不能自行升權。共用身份無法辨識個別裁判；若未來需要分工或責任追蹤，再改個別身份。
 
 8. 確認 event_state 已加入 supabase_realtime publication；migration 會自動加入。只推播版本變更，家長端再讀安全快照。內部表格不公開。
 9. 取得 Project URL 與 publishable key，不將機密放入前端。
 
-參考：[Email 登入](https://supabase.com/docs/guides/auth/auth-email-passwordless)、[SMTP](https://supabase.com/docs/guides/auth/auth-smtp)、[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)。
+登入狀態僅在頁面記憶體保留，不寫入 localStorage；重新整理或關閉頁面需再輸入密碼。密碼只交付工作人員，定期更換；若洩漏，先移除該身份的資料庫角色阻止操作，再更換密碼並處理既有工作階段。不能假設改密碼會立即使所有已簽發 JWT 失效。
+
+參考：[密碼登入](https://supabase.com/docs/reference/javascript/auth-signinwithpassword)、[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)。
 
 ## GitHub Pages
 
-長期使用的 repository 為 `JulianLu1028/ttra-score`，示範與正式版沿用同一個 repository 和網址。
+長期使用的 repository 為 `JulianLu1028/ttra-score`，正式版沿用原 repository 和網址，不再部署示範版。
 
 1. 本資料夾內容放在 repository 根目錄，預設 branch 為 main；不提交 `.env.local`、真實參賽名單、私密金鑰或 `node_modules`。
 2. Settings / Pages：Source 選 GitHub Actions。
 3. Settings / Secrets and variables / Actions / Variables：
-   - 現階段展示：新增 `DEPLOYMENT_MODE` = `demo`。工作流程不注入 Supabase 設定，只使用虛構的記憶體資料；重整即重設，不能跨分頁／裝置同步。
-   - 正式上線：完成下方驗收後，新增 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_PUBLISHABLE_KEY`，將 `DEPLOYMENT_MODE` 改成 `production`。不需重建 repository。
-4. Push main 或手動啟動工作流程，先測試與型別檢查再部署。未設定模式時預設正式模式；正式模式缺少連線設定會拒絕部署，未知模式也會拒絕。更改 Variables 後需重新執行工作流程才會生效。
+   - 新增 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_PUBLISHABLE_KEY`，只能填公開連線資訊。
+   - 工作流程固定使用 production，不再讀取 repository 的 `DEPLOYMENT_MODE`；可刪除舊的 demo 變數。
+4. Push main 或手動啟動工作流程，先測試與型別檢查再部署。缺少連線設定或使用非 production 建置會拒絕部署。更改 Variables 後需重新執行工作流程才會生效。自動測試使用隔離的虛構資料，不連線正式資料庫。
 5. 使用帳號根站台或自訂網域時，將 workflow 的 VITE_SITE_URL 改為正確網址。
 
 Linkt 放入兩個家長端連結：
@@ -62,6 +45,8 @@ Linkt 放入兩個家長端連結：
 
 ## 賽前必要驗收
 
+- 家長頁沒有工作人員入口；直接開工作台網址仍須輸入密碼。錯誤密碼、沒有角色或匿名 API 請求都不能操作工作台或取得私有草稿。
+- 在兩個工作台驗證密碼登入、登出、重新整理後重新登入；登出後不可顯示原工作台內容。不要將共用密碼分享至家長群組。
 - 一支裁判手機與一支家長手機，使用 4G／5G。
 - 名單匯入、報到、四組各送分，確認家長端同步。
 - 確認兩端都依梯次分段，切換梯次仍保留全組合併名次，頂端人數僅屬於目前項目。
@@ -82,4 +67,4 @@ Linkt 放入兩個家長端連結：
 挑戰賽公開姓名／參賽編號／組別／梯次／報到／成績；學科只公開已公布的姓名／參賽編號／分數及公布時間。不記錄學校，勿上傳電話、家長聯絡方式等額外個資；匯入前須確認姓名可公開。示範與範本姓名皆為虛構，正式匯入前請替換。
 已有成績的參賽者不能直接撤銷報到，需由管理員先處理成績。
 取消資格、重賽等非常態事件由主辦人裁決，本版不自動處理。
-PGlite 測試不取代正式 Supabase Email、JWT、Realtime、公網延遲驗證。
+PGlite 測試不取代正式 Supabase 密碼登入、JWT、Realtime、公網延遲驗證。

@@ -2,7 +2,7 @@
 
 提供「檢定專區」與「挑戰賽專區」，由主辦人的 Linkt 分別連入，不另做總首頁。React + TypeScript + Vite 靜態前端部署於 GitHub Pages；Supabase 負責登入、PostgreSQL、權限、即時同步。
 
-本賽事為單人賽。挑戰賽名單使用「參賽編號、姓名、組別、梯次」，學科名單使用「參賽編號、姓名」。不顯示或記錄學校，匯入時拒絕額外欄位。為測試 CSV 匯入，幼兒簡易機械組示範名單維持空白，其餘三組各有 6 位虛構參賽者；學科另有 4 位尚未登分的虛構參賽者。
+本賽事為單人賽。挑戰賽名單使用「參賽編號、姓名、組別、梯次」，學科名單使用「參賽編號、姓名」。不顯示或記錄學校，匯入時拒絕額外欄位。正式資料庫初始名單為空，由主辦人匯入；虛構姓名只供自動測試使用。
 
 ## 本機操作
 
@@ -11,7 +11,7 @@
     npm ci
     npm run dev
 
-沒有 Supabase 設定時顯示「示範模式」，可體驗挑戰賽計分、報到、梯次、CSV 匯入，以及學科登分和手動公布。**示範資料在同一頁切換專區時保留，但重新整理即重設，不能跨裝置或分頁同步，不可用於正式計分。**
+系統只提供正式連線模式。沒有 Supabase 設定時顯示「系統尚未開放」，不提供模擬成績、免登入工作台或記憶體計分。建置缺少連線設定時會失敗。
 
 複製 .env.example 為 .env.local，填入專案 URL 與 publishable key 即使用正式後端。不得放入 secret、service-role 或資料庫密碼。
 
@@ -20,7 +20,10 @@
 - /#/challenge：挑戰賽家長端，無需登入。
 - /#/challenge/staff：挑戰賽工作台。舊 /#/、/#/staff 仍可使用。
 - /#/exam：檢定學科成績公告，無需登入。
-- /#/exam/staff：學科登分與公布，正式模式以 Email 登入連結登入。
+- /#/exam/staff：學科登分與公布。
+- 家長頁面不顯示工作人員入口；工作台連結由主辦人另外提供。知道網址仍須通過後端驗證，隱藏入口不是權限保護本身。
+- 兩個工作台只要求共用密碼，不要求裁判填寫帳號或 Email。Supabase 驗證固定技術身份，資料庫另驗證工作人員角色；密碼不放在前端或 GitHub。
+- 登入狀態僅保留於目前頁面記憶體，重新整理、關閉再開需重新輸入密碼；正式資料仍保存在資料庫。
 - 幼兒、動力、科創各 2 梯，程式 3 梯；兩端依梯次分段，也可篩選。各梯合併排名，畫面保留全組名次。
 - 頂端人數統計只計目前組別的全部梯次，不因搜尋或梯次篩選改變。
 - 四組固定計分、回合明細、排名、合格與未完成狀態。
@@ -28,8 +31,8 @@
 - Realtime 加 10 秒補抓，離線禁止送分。
 - CSV 匯入預覽、重複檢查、整批交易、不覆蓋原名單。
 - 分組成績 CSV 匯出，防試算表公式注入。
-- 分組裁判、報到人員與管理員；後端驗證權限。
-- 原值、新值、操作者、原因與時間的修改紀錄。
+- 本次使用共用工作人員管理權限，可處理挑戰賽與學科；資料庫保留分組裁判與報到角色的支援。
+- 原值、新值、原因與時間的修改紀錄。共用密碼的操作者皆為同一技術身份，不能辨認個別裁判。
 - 唯一請求 ID 防重送、預期版本防止並行覆寫。
 
 ## 學科成績公布
@@ -44,25 +47,21 @@
 
 ## 上線與測試
 
-長期 repository：[JulianLu1028/ttra-score](https://github.com/JulianLu1028/ttra-score)。GitHub Pages 初期以明確啟用的 `demo` 模式展示；正式上線仍使用同一個 repository 與網址，改為 `production` 模式並接入已驗收的 Supabase。
+長期 repository：[JulianLu1028/ttra-score](https://github.com/JulianLu1028/ttra-score)。正式版沿用原 repository 與 GitHub Pages 網址，不再提供示範部署。
 
-線上示範入口：
+家長入口（也可放入 Linkt）：
 
-| 專區 | 家長端 | 裁判端 |
-| --- | --- | --- |
-| 挑戰賽 | [查看](https://julianlu1028.github.io/ttra-score/#/challenge) | [工作台](https://julianlu1028.github.io/ttra-score/#/challenge/staff) |
-| 檢定學科 | [查看](https://julianlu1028.github.io/ttra-score/#/exam) | [工作台](https://julianlu1028.github.io/ttra-score/#/exam/staff) |
-
-示範資料不會跨裝置／分頁同步，重新整理就會重設；不可用於正式計分。
+- [挑戰賽](https://julianlu1028.github.io/ttra-score/#/challenge)
+- [檢定學科](https://julianlu1028.github.io/ttra-score/#/exam)
 
 參閱 [DEPLOYMENT.md](DEPLOYMENT.md) 與 [RULES.md](RULES.md)。
 
     npm test
     npm run build
 
-測試使用 PGlite 執行真正 PostgreSQL / PLpgSQL、RLS 與權限情境，不需要 Docker。正式 Supabase Auth、SMTP、Realtime 與兩支手機賽前演練仍必須另外完成。
+測試使用 PGlite 執行真正 PostgreSQL / PLpgSQL、RLS 與權限情境，不需要 Docker。正式 Supabase 密碼驗證、JWT、Realtime 與兩支手機賽前演練仍必須另外完成。
 
-資料庫 public.results 是正式排名來源，前端 domain.ts 為示範與比對實作。公開資料不含裁判身份、內部備註或聯絡資料。
+資料庫 public.results 是正式排名來源，前端 domain.ts 為測試與比對實作。公開資料不含裁判身份、內部備註或聯絡資料。
 
 內部沿用 Team／teams／team_id 等初版識別名稱以維持介面相容，每筆實際代表個人，沒有團體或隊員資料。同名參賽者以不同參賽編號區分。舊版含學校或缺少梯次的 CSV 必須改用新版範本。
 
@@ -70,7 +69,7 @@
 
 - src/App.tsx：家長與工作人員介面。
 - src/Root.tsx：兩個專區的 hash 路由。
-- src/AcademicApp.tsx、src/academic.ts：學科工作台、公告及獨立示範資料。
+- src/AcademicApp.tsx、src/academic.ts：學科工作台、公告及測試資料。
 - src/ScoreForm.tsx：裁判表單、確認與修正。
 - src/domain.ts：計分與驗證對照。
 - src/data.ts：Supabase RPC 與訂閱。

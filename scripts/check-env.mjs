@@ -1,14 +1,10 @@
 const url = process.env.VITE_SUPABASE_URL;
 const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const mode = process.env.DEPLOYMENT_MODE || "production";
-if (mode !== "demo" && mode !== "production")
-  throw new Error("DEPLOYMENT_MODE must be demo or production.");
-if (mode === "demo") {
-  if (url || key)
-    throw new Error("Demo deployment must not connect to a Supabase project.");
-  console.log("Explicit demo deployment: fictional, in-memory data only.");
-  process.exit(0);
-}
+if (mode !== "production")
+  throw new Error(
+    "Only production deployment is supported. Demo deployment is disabled.",
+  );
 if (!url || !key)
   throw new Error(
     "Missing Supabase URL or publishable key. Refusing to deploy demo mode.",

@@ -74,8 +74,8 @@ type Snapshot = {
   audit?: Audit[];
 };
 let demoSnapshot: Snapshot = {
-  teams: demoTeams,
-  attempts: demoAttempts,
+  teams: isDemoMode ? demoTeams : [],
+  attempts: isDemoMode ? demoAttempts : [],
   audit: [],
 };
 export function readDemoChallenge() {
@@ -114,7 +114,8 @@ async function loadRemote(): Promise<Snapshot> {
   return cached;
 }
 export async function getStaff(): Promise<Staff | null> {
-  if (!supabase) return { role: "admin", categoryIds: [] };
+  if (isDemoMode) return { role: "admin", categoryIds: [] };
+  if (!supabase) throw new Error("正式連線尚未設定");
   const { data, error } = await supabase.rpc("my_staff_role");
   if (error) throw error;
   return data
@@ -152,7 +153,8 @@ export async function saveAttempt(input: SaveInput): Promise<Attempt | null> {
   return mapAttempt(data);
 }
 export async function importTeams(rows: ImportTeam[]) {
-  if (!supabase) return;
+  if (isDemoMode) return;
+  if (!supabase) throw new Error("正式連線尚未設定");
   const { error } = await supabase.rpc("import_teams", {
     p_rows: rows.map((r) => ({
       team_number: r.number,
@@ -164,7 +166,8 @@ export async function importTeams(rows: ImportTeam[]) {
   if (error) throw error;
 }
 export async function loadAudit(): Promise<Audit[]> {
-  if (!supabase) return [];
+  if (isDemoMode) return [];
+  if (!supabase) throw new Error("正式連線尚未設定");
   const { data, error } = await supabase.rpc("read_audit");
   if (error) throw error;
   return data ?? [];

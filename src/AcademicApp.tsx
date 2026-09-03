@@ -65,6 +65,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
   const saveReceipt = useRef({ signature: "", id: "" });
   const refreshRef = useRef<() => Promise<void>>(async () => {});
   const canGrade = Boolean(
+    (isDemoMode || (session && !authLoading)) &&
     staff &&
     (staff.role === "admin" ||
       (staff.role === "judge" && staff.canGradeAcademic)),
@@ -85,19 +86,31 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
   }, []);
   useEffect(() => {
     if (!supabase) return;
-    let live = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (live) {
-        setSession(data.session);
-        setAuthLoading(false);
-      }
-    });
+    let live = true,
+      authChanged = false;
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (live && !authChanged) {
+          setSession(data.session);
+          setAuthLoading(Boolean(data.session));
+        }
+      })
+      .catch(() => {
+        if (live && !authChanged) {
+          setAuthLoading(false);
+          setError("登入狀態確認失敗，請重新整理後再試。");
+        }
+      });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, next) => {
+      authChanged = true;
       setStaff(null);
       setWorkspace(null);
       setSelected(null);
+      setPublishConfirmation(null);
+      setAuthLoading(Boolean(next));
       setSession(next);
     });
     return () => {
@@ -106,7 +119,12 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
     };
   }, []);
   useEffect(() => {
-    if (isDemoMode || !session) return;
+    if (isDemoMode) return;
+    setStaff(null);
+    if (!session) {
+      setAuthLoading(false);
+      return;
+    }
     let live = true;
     setAuthLoading(true);
     void getStaff()
@@ -249,14 +267,16 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
           <a className="section-link" href="#/challenge">
             挑戰賽專區
           </a>
-          <Button
-            variant="outline"
-            onClick={() => {
-              location.hash = staffView ? "/exam" : "/exam/staff";
-            }}
-          >
-            {staffView ? "家長看成績" : "工作人員入口"}
-          </Button>
+          {staffView && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                location.hash = "/exam";
+              }}
+            >
+              家長看成績
+            </Button>
+          )}
         </div>
       </header>
       <main className="page academic-page">
@@ -297,7 +317,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
             {authLoading ? (
               <p>正在確認權限…</p>
             ) : !session ? (
-              <Login returnTo="#/exam/staff" />
+              <Login />
             ) : (
               <>
                 <ShieldCheck />
@@ -307,7 +327,9 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                 </p>
                 <Button
                   variant="outline"
-                  onClick={() => void supabase!.auth.signOut()}
+                  onClick={() =>
+                    void supabase!.auth.signOut({ scope: "local" })
+                  }
                 >
                   登出
                 </Button>
@@ -373,7 +395,9 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                 {!isDemoMode && (
                   <Button
                     variant="ghost"
-                    onClick={() => void supabase!.auth.signOut()}
+                    onClick={() =>
+                      void supabase!.auth.signOut({ scope: "local" })
+                    }
                   >
                     登出
                   </Button>

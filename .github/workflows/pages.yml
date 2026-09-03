@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      DEPLOYMENT_MODE: ${{ vars.DEPLOYMENT_MODE || 'production' }}
+      DEPLOYMENT_MODE: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,15 +22,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Check selected deployment mode
+      - name: Require production connection
         env:
-          VITE_SUPABASE_URL: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_URL || '' }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_PUBLISHABLE_KEY || '' }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: node scripts/check-env.mjs
       - name: Build GitHub Pages
         env:
-          VITE_SUPABASE_URL: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_URL || '' }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_PUBLISHABLE_KEY || '' }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: npm run build
       - uses: actions/upload-pages-artifact@v3

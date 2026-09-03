@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import App from "../src/App";
+import App, { Login } from "../src/App";
 import { ScoreForm } from "../src/ScoreForm";
 import { ImportPanel } from "../src/ImportPanel";
 import { categories, type Team } from "../src/domain";
@@ -15,7 +15,8 @@ describe("非瀏覽器渲染檢查", () => {
     vi.stubGlobal("localStorage", { getItem: () => null });
     const html = renderToString(<App />);
     expect(html).toContain("示範模式");
-    expect(html).toContain("工作人員入口");
+    expect(html).not.toContain("工作人員入口");
+    expect(html).not.toMatch(/href="[^"]*\/staff"/);
     expect(html).toContain("科創機器人組");
     expect(html).toContain("姓名與成績皆為虛構");
     expect(html).toContain("參賽人數");
@@ -77,6 +78,16 @@ it("學科家長入口不渲染內部登分功能", () => {
   expect(html).toContain('class="academic-theme academic-shell"');
   expect(html).not.toContain("公布全部學科成績");
   expect(html).not.toContain("目前分數（內部）");
+  expect(html).not.toContain("工作人員入口");
+  expect(html).not.toMatch(/href="[^"]*\/staff"/);
+});
+it("工作台只要求密碼，不顯示帳號或 Email 欄位", () => {
+  const html = renderToString(<Login />);
+  expect(html).toContain('type="password"');
+  expect(html).toContain("工作人員密碼");
+  expect(html).not.toContain('type="email"');
+  expect(html).not.toContain("staff@ttra-score.invalid");
+  expect(html).not.toContain("登入連結");
 });
 it("學科裁判入口與家長入口使用相同的獨立配色", () => {
   vi.stubGlobal("navigator", { onLine: true });

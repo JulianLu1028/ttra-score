@@ -196,12 +196,16 @@ export class AcademicDemoStore {
     });
   }
 }
-const demoAcademic = new AcademicDemoStore([
-  { number: "E001", name: "陳宥安" },
-  { number: "E002", name: "林芷晴" },
-  { number: "E003", name: "黃品睿" },
-  { number: "E004", name: "張語彤" },
-]);
+const demoAcademic = new AcademicDemoStore(
+  isDemoMode
+    ? [
+        { number: "E001", name: "陳宥安" },
+        { number: "E002", name: "林芷晴" },
+        { number: "E003", name: "黃品睿" },
+        { number: "E004", name: "張語彤" },
+      ]
+    : [],
+);
 export async function getAcademicWorkspace(): Promise<AcademicWorkspace> {
   if (isDemoMode) return demoAcademic.readWorkspace();
   const { data, error } = await supabase!.rpc("get_academic_workspace");

@@ -24,8 +24,8 @@ describe("GitHub Pages deployment guard", () => {
   it("requires production configuration by default", () => {
     expect(check({}).status).toBe(1);
   });
-  it("allows demo only when explicitly selected", () => {
-    expect(check({ DEPLOYMENT_MODE: "demo" }).status).toBe(0);
+  it("refuses demo deployment even when explicitly selected", () => {
+    expect(check({ DEPLOYMENT_MODE: "demo" }).status).toBe(1);
   });
   it("rejects unknown modes", () => {
     expect(check({ DEPLOYMENT_MODE: "preview" }).status).toBe(1);
