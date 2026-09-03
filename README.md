@@ -46,6 +46,15 @@
 
 長期 repository：[JulianLu1028/ttra-score](https://github.com/JulianLu1028/ttra-score)。GitHub Pages 初期以明確啟用的 `demo` 模式展示；正式上線仍使用同一個 repository 與網址，改為 `production` 模式並接入已驗收的 Supabase。
 
+線上示範入口：
+
+| 專區 | 家長端 | 裁判端 |
+| --- | --- | --- |
+| 挑戰賽 | [查看](https://julianlu1028.github.io/ttra-score/#/challenge) | [工作台](https://julianlu1028.github.io/ttra-score/#/challenge/staff) |
+| 檢定學科 | [查看](https://julianlu1028.github.io/ttra-score/#/exam) | [工作台](https://julianlu1028.github.io/ttra-score/#/exam/staff) |
+
+示範資料不會跨裝置／分頁同步，重新整理就會重設；不可用於正式計分。
+
 參閱 [DEPLOYMENT.md](DEPLOYMENT.md) 與 [RULES.md](RULES.md)。
 
     npm test
