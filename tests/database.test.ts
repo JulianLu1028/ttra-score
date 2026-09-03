@@ -289,7 +289,9 @@ describe("學科私有登分與公開快照資料庫", () => {
         { team_number: "X", name: "陳宥安", category_id: "program", heat: 3 },
       ]),
     ]);
-    const row = (await db.query("select * from public.teams")).rows[0];
+    const row = (
+      await db.query<{ heat: number }>("select * from public.teams")
+    ).rows[0];
     expect(row.heat).toBe(3);
     expect(row).not.toHaveProperty("organization");
     await expect(
