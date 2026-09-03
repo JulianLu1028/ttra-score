@@ -1,0 +1,24 @@
+// Direct icon entrypoints avoid loading the entire icon catalog during builds.
+export { default as Bot } from "lucide-react/dist/esm/icons/bot.mjs";
+export { default as ArrowUpRight } from "lucide-react/dist/esm/icons/arrow-up-right.mjs";
+export { default as Radio } from "lucide-react/dist/esm/icons/radio.mjs";
+export { default as Trophy } from "lucide-react/dist/esm/icons/trophy.mjs";
+export { default as Users } from "lucide-react/dist/esm/icons/users.mjs";
+export { default as CheckCircle2 } from "lucide-react/dist/esm/icons/circle-check.mjs";
+export { default as Search } from "lucide-react/dist/esm/icons/search.mjs";
+export { default as RefreshCw } from "lucide-react/dist/esm/icons/refresh-cw.mjs";
+export { default as ChevronRight } from "lucide-react/dist/esm/icons/chevron-right.mjs";
+export { default as ArrowLeft } from "lucide-react/dist/esm/icons/arrow-left.mjs";
+export { default as Download } from "lucide-react/dist/esm/icons/download.mjs";
+export { default as LogOut } from "lucide-react/dist/esm/icons/log-out.mjs";
+export { default as ClipboardCheck } from "lucide-react/dist/esm/icons/clipboard-check.mjs";
+export { default as History } from "lucide-react/dist/esm/icons/history.mjs";
+export { default as Upload } from "lucide-react/dist/esm/icons/upload.mjs";
+export { default as ShieldCheck } from "lucide-react/dist/esm/icons/shield-check.mjs";
+export { default as WifiOff } from "lucide-react/dist/esm/icons/wifi-off.mjs";
+export { default as Star } from "lucide-react/dist/esm/icons/star.mjs";
+export { default as Check } from "lucide-react/dist/esm/icons/check.mjs";
+export { default as Save } from "lucide-react/dist/esm/icons/save.mjs";
+export { default as AlertTriangle } from "lucide-react/dist/esm/icons/triangle-alert.mjs";
+export { default as XIcon } from "lucide-react/dist/esm/icons/x.mjs";
+export { default as ChevronDownIcon } from "lucide-react/dist/esm/icons/chevron-down.mjs";

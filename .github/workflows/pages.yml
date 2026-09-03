@@ -1,0 +1,50 @@
+name: Test and deploy scoreboard
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOYMENT_MODE: ${{ vars.DEPLOYMENT_MODE || 'production' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Check selected deployment mode
+        env:
+          VITE_SUPABASE_URL: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_URL || '' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_PUBLISHABLE_KEY || '' }}
+        run: node scripts/check-env.mjs
+      - name: Build GitHub Pages
+        env:
+          VITE_SUPABASE_URL: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_URL || '' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ env.DEPLOYMENT_MODE == 'production' && vars.VITE_SUPABASE_PUBLISHABLE_KEY || '' }}
+          VITE_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
