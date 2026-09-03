@@ -209,7 +209,7 @@ describe("CSV", () => {
         "參賽編號,姓名,學校／單位,組別\n001,陳宥安,學校,power",
         "power",
       ),
-    ).toThrow("新版範本");
+    ).toThrow("目前項目的範本");
     expect(() => parseTeams("參賽編號,姓名\nB001,陳宥安", "power")).toThrow(
       "梯次",
     );

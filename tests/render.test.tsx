@@ -56,7 +56,6 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toContain("目前匯入組別");
     expect(html).toContain("寶礦力水得足球世界盃");
     expect(html).toContain("下載範本");
-    expect(html).not.toContain("新版範本固定只有三欄");
     expect(html).toContain("姓名與成績會公開");
     expect(html).not.toMatch(/隊伍|隊名/);
   });

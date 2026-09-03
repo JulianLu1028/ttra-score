@@ -56,9 +56,7 @@ export function parseTeams(text: string, categoryId: CategoryId): ImportTeam[] {
     headers.some((h) => !allowed.includes(h)) ||
     new Set(headers).size !== headers.length
   )
-    throw new Error(
-      "請使用目前組別的新版範本，只保留參賽編號、姓名、梯次三個欄位",
-    );
+    throw new Error("請使用目前項目的範本，只保留參賽編號、姓名、梯次三個欄位");
   const ni = index("參賽編號", "participant_number", "team_number"),
     na = index("姓名", "name"),
     hi = index("梯次", "heat");

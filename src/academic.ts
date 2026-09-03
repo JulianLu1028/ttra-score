@@ -49,7 +49,7 @@ export function parseAcademicCSV(text: string): AcademicRosterRow[] {
   const ni = headers.findIndex((x) => ["參賽編號", "number"].includes(x));
   const na = headers.findIndex((x) => ["姓名", "name"].includes(x));
   if (headers.length !== 2 || ni < 0 || na < 0)
-    throw new Error("學科名單只接受「參賽編號、姓名」兩欄，請使用新版範本");
+    throw new Error("學科名單只接受「參賽編號、姓名」兩欄，請下載範本後填寫");
   const seen = new Set<string>();
   return rows.map((row, index) => {
     const number = row[ni],
