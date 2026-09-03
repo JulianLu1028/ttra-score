@@ -10,15 +10,17 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { categories, type Team } from "./domain";
-import { parseTeams, downloadCSV } from "./csv";
+import { categories, type CategoryId, type Team } from "./domain";
+import { parseTeams, downloadCSV, participantNumber } from "./csv";
 import type { ImportTeam } from "./data";
 export function ImportPanel({
   teams,
+  categoryId,
   onImport,
   disabled,
 }: {
   teams: Team[];
+  categoryId: CategoryId;
   onImport: (rows: ImportTeam[]) => Promise<void>;
   disabled: boolean;
 }) {
@@ -26,6 +28,7 @@ export function ImportPanel({
     [error, setError] = useState(""),
     [success, setSuccess] = useState(""),
     [busy, setBusy] = useState(false);
+  const category = categories.find((c) => c.id === categoryId)!;
   async function read(file?: File) {
     setRows([]);
     setError("");
@@ -36,7 +39,7 @@ export function ImportPanel({
       return;
     }
     try {
-      const parsed = parseTeams(await file.text());
+      const parsed = parseTeams(await file.text(), categoryId);
       const duplicate = parsed.find((r) =>
         teams.some((t) => t.number === r.number),
       );
@@ -53,7 +56,7 @@ export function ImportPanel({
     setBusy(true);
     try {
       await onImport(rows);
-      setSuccess("已匯入 " + rows.length + " 人");
+      setSuccess("已匯入「" + category.name + "」" + rows.length + " 人");
       setRows([]);
     } catch (e) {
       setError((e as Error).message);
@@ -71,9 +74,9 @@ export function ImportPanel({
         <Button
           variant="outline"
           onClick={() =>
-            downloadCSV("TTRA-參賽者名單範本.csv", [
-              ["參賽編號", "姓名", "組別", "梯次"],
-              ["101", "陳宥安", "幼兒簡易機械組", 1],
+            downloadCSV("TTRA-" + category.name + "名單範本.csv", [
+              ["參賽編號", "姓名", "梯次"],
+              [participantNumber(categoryId, 1), "陳宥安", 1],
             ])
           }
         >
@@ -83,7 +86,9 @@ export function ImportPanel({
       </div>
       <div className="form-body">
         <p className="hint">
-          使用 UTF-8 CSV。Excel 可另存為「CSV
+          目前匯入組別：<strong>{category.name}</strong>。CSV
+          不必填組別，系統會依目前選擇自動帶入；編號前綴若不符會整批拒絕。使用
+          UTF-8 CSV。Excel 可另存為「CSV
           UTF-8」。每列一位參賽者，以參賽編號區分同名者。姓名與成績會公開，請確認可公開後再匯入；不要上傳電話、家長聯絡方式等資料。範本姓名為虛構，匯入前請替換。
         </p>
         <p className="hint">
@@ -110,7 +115,9 @@ export function ImportPanel({
         )}
         {rows.length > 0 && (
           <>
-            <p>預覽 {rows.length} 人，確認後才會寫入。</p>
+            <p>
+              即將匯入「{category.name}」共 {rows.length} 人，確認後才會寫入。
+            </p>
             <Table>
               <TableHeader>
                 <TableRow>

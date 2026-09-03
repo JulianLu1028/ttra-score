@@ -565,7 +565,9 @@ export default function App() {
             tab === "import" &&
             staff?.role === "admin" ? (
               <ImportPanel
+                key={group}
                 teams={teams}
+                categoryId={group}
                 onImport={importRoster}
                 disabled={!online}
               />

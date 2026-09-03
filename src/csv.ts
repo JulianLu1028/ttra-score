@@ -1,5 +1,14 @@
 import { categories, heatCount, type CategoryId } from "./domain";
 import type { ImportTeam } from "./data";
+export const categoryPrefixes: Record<CategoryId, string> = {
+  preschool: "A",
+  power: "B",
+  program: "C",
+  creative: "D",
+};
+export function participantNumber(categoryId: CategoryId, sequence: number) {
+  return categoryPrefixes[categoryId] + String(sequence).padStart(3, "0");
+}
 export function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [],
@@ -28,7 +37,7 @@ export function parseCSV(text: string): string[][] {
   if (row.some(Boolean)) rows.push(row);
   return rows.map((r) => r.map((v) => v.replace(/^\uFEFF/, "").trim()));
 }
-export function parseTeams(text: string): ImportTeam[] {
+export function parseTeams(text: string, categoryId: CategoryId): ImportTeam[] {
   const [headers, ...rows] = parseCSV(text);
   if (!headers || rows.length === 0) throw new Error("名單沒有資料");
   if (rows.length > 500) throw new Error("每次最多匯入 500 人");
@@ -40,8 +49,6 @@ export function parseTeams(text: string): ImportTeam[] {
     "team_number",
     "姓名",
     "name",
-    "組別",
-    "category_id",
     "梯次",
     "heat",
   ];
@@ -49,32 +56,60 @@ export function parseTeams(text: string): ImportTeam[] {
     headers.some((h) => !allowed.includes(h)) ||
     new Set(headers).size !== headers.length
   )
-    throw new Error("請使用新版範本，只保留參賽編號、姓名、組別、梯次四個欄位");
+    throw new Error(
+      "請使用目前組別的新版範本，只保留參賽編號、姓名、梯次三個欄位",
+    );
   const ni = index("參賽編號", "participant_number", "team_number"),
     na = index("姓名", "name"),
-    hi = index("梯次", "heat"),
-    ci = index("組別", "category_id");
-  if ([ni, na, ci, hi].some((i) => i < 0) || headers.length !== 4)
-    throw new Error("需要「參賽編號、姓名、組別、梯次」四個欄位");
+    hi = index("梯次", "heat");
+  if ([ni, na, hi].some((i) => i < 0) || headers.length !== 3)
+    throw new Error(
+      "需要「參賽編號、姓名、梯次」三個欄位；組別由目前頁面自動帶入",
+    );
+  const category = categories.find((c) => c.id === categoryId)!;
+  const expectedPrefix = categoryPrefixes[categoryId];
   const seen = new Set<string>();
   return rows.map((row, i) => {
     const number = row[ni],
-      name = row[na],
-      raw = row[ci];
-    const c = categories.find((c) => c.id === raw || c.name === raw);
-    if (!number || !name || !c)
-      throw new Error("第 " + (i + 2) + " 列：參賽編號、姓名或組別不正確");
+      name = row[na];
+    if (!number || !name)
+      throw new Error("第 " + (i + 2) + " 列：參賽編號或姓名不可空白");
+    if (!/^[A-D][0-9]{3}$/.test(number))
+      throw new Error(
+        "第 " + (i + 2) + " 列：參賽編號須為 A001、B001、C001、D001 這類格式",
+      );
+    if (!number.startsWith(expectedPrefix)) {
+      const actual = categories.find(
+        (c) => categoryPrefixes[c.id] === number[0],
+      )!;
+      throw new Error(
+        "第 " +
+          (i + 2) +
+          " 列：編號 " +
+          number +
+          " 屬於「" +
+          actual.name +
+          "」，目前選擇的是「" +
+          category.name +
+          "」",
+      );
+    }
     if (number.length > 32 || name.length > 100)
       throw new Error("第 " + (i + 2) + " 列：參賽編號或姓名過長");
     const heat = Number(row[hi]);
     if (
-      row.length !== 4 ||
+      row.length !== 3 ||
       !Number.isInteger(heat) ||
       heat < 1 ||
-      heat > heatCount(c.id)
+      heat > heatCount(categoryId)
     )
       throw new Error(
-        "第 " + (i + 2) + " 列：" + c.name + " 的梯次須為 1–" + heatCount(c.id),
+        "第 " +
+          (i + 2) +
+          " 列：" +
+          category.name +
+          "的梯次須為 1–" +
+          heatCount(categoryId),
       );
     if (seen.has(number)) throw new Error("重複參賽編號：" + number);
     seen.add(number);
@@ -82,7 +117,7 @@ export function parseTeams(text: string): ImportTeam[] {
       number,
       name,
       heat,
-      categoryId: c.id as CategoryId,
+      categoryId,
     };
   });
 }

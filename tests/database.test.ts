@@ -16,7 +16,14 @@ async function asUser(id: string | null, role = "authenticated") {
   ]);
   await db.exec("set role " + role);
 }
-async function createTeam(category = "power", number = "101") {
+const prefixes: Record<string, string> = {
+  preschool: "A",
+  power: "B",
+  program: "C",
+  creative: "D",
+};
+async function createTeam(category = "power", number?: string) {
+  number ??= prefixes[category] + "001";
   await asUser(admin);
   await db.query("select public.import_teams($1)", [
     JSON.stringify([
@@ -77,7 +84,11 @@ beforeAll(async () => {
     "insert into private.staff_roles(user_id,role,category_ids) values($1,'admin','{}'),($2,'judge','{power}'),($3,'checkin','{}')",
     [admin, judge, checkin],
   );
-  for (const migration of ["002_heats_and_privacy.sql", "003_academic.sql"])
+  for (const migration of [
+    "002_heats_and_privacy.sql",
+    "003_academic.sql",
+    "004_participant_numbering.sql",
+  ])
     await db.exec(
       readFileSync(
         new URL("../supabase/migrations/" + migration, import.meta.url),
@@ -280,25 +291,34 @@ describe("學科私有登分與公開快照資料庫", () => {
       await expect(
         db.query("select public.import_teams($1)", [
           JSON.stringify([
-            { team_number: "X", name: "陳宥安", category_id: "creative", heat },
+            {
+              team_number: "D001",
+              name: "陳宥安",
+              category_id: "creative",
+              heat,
+            },
           ]),
         ]),
       ).rejects.toThrow();
     await db.query("select public.import_teams($1)", [
       JSON.stringify([
-        { team_number: "X", name: "陳宥安", category_id: "program", heat: 3 },
+        {
+          team_number: "C001",
+          name: "陳宥安",
+          category_id: "program",
+          heat: 3,
+        },
       ]),
     ]);
-    const row = (
-      await db.query<{ heat: number }>("select * from public.teams")
-    ).rows[0];
+    const row = (await db.query<{ heat: number }>("select * from public.teams"))
+      .rows[0];
     expect(row.heat).toBe(3);
     expect(row).not.toHaveProperty("organization");
     await expect(
       db.query("select public.import_teams($1)", [
         JSON.stringify([
           {
-            team_number: "Y",
+            team_number: "C002",
             name: "陳宥安",
             category_id: "program",
             heat: 1,
@@ -307,6 +327,18 @@ describe("學科私有登分與公開快照資料庫", () => {
         ]),
       ]),
     ).rejects.toThrow("不接受");
+    await expect(
+      db.query("select public.import_teams($1)", [
+        JSON.stringify([
+          {
+            team_number: "D003",
+            name: "前綴錯誤",
+            category_id: "program",
+            heat: 1,
+          },
+        ]),
+      ]),
+    ).rejects.toThrow("teams_number_category");
   });
   it("科創 40 秒有效，40.01 秒拒絕；動力仍是 30 秒", async () => {
     const id = await createTeam("creative");
@@ -317,7 +349,7 @@ describe("學科私有登分與公開快照資料庫", () => {
     await expect(
       submit(input(id, "creative", "right", { ...data, seconds: 40.01 })),
     ).rejects.toThrow("有效範圍");
-    const power = await createTeam("power", "102");
+    const power = await createTeam("power", "B002");
     await expect(
       submit(input(power, "power", "pull-1", { bottles: 7, seconds: 40 })),
     ).rejects.toThrow("有效範圍");
@@ -474,7 +506,10 @@ describe("Supabase/Postgres 整合與權限", () => {
       "creative",
     ] as const)
       for (let i = 1; i <= 4; i++) {
-        const id = await createTeam(category, category + i);
+        const id = await createTeam(
+          category,
+          prefixes[category] + String(i + 1).padStart(3, "0"),
+        );
         if (category === "preschool")
           await submit(
             input(id, category, "round-1", { childGoals: 2, parentGoals: 1 }),
@@ -547,9 +582,9 @@ describe("Supabase/Postgres 整合與權限", () => {
     await expect(
       db.query("select public.import_teams($1)", [
         JSON.stringify([
-          { team_number: "102", name: "New", category_id: "power", heat: 1 },
+          { team_number: "B002", name: "New", category_id: "power", heat: 1 },
           {
-            team_number: "101",
+            team_number: "B001",
             name: "Overwrite",
             category_id: "power",
             heat: 2,
@@ -561,10 +596,13 @@ describe("Supabase/Postgres 整合與權限", () => {
   });
   it("120 人快照、版本檢查與更新通知", async () => {
     await asUser(admin);
+    const categories = ["preschool", "power", "program", "creative"];
     const rows = Array.from({ length: 120 }, (_, i) => ({
-      team_number: String(i + 1).padStart(3, "0"),
+      team_number:
+        prefixes[categories[i % 4]] +
+        String(Math.floor(i / 4) + 1).padStart(3, "0"),
       name: demoTeams[i % demoTeams.length].name,
-      category_id: ["preschool", "power", "program", "creative"][i % 4],
+      category_id: categories[i % 4],
       heat: 1,
     }));
     await db.query("select public.import_teams($1)", [JSON.stringify(rows)]);

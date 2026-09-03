@@ -41,10 +41,16 @@ describe("非瀏覽器渲染檢查", () => {
   });
   it("匯入介面使用單人賽用詞並提醒姓名將公開", () => {
     const html = renderToString(
-      <ImportPanel teams={[]} onImport={async () => {}} disabled={false} />,
+      <ImportPanel
+        teams={[]}
+        categoryId="preschool"
+        onImport={async () => {}}
+        disabled={false}
+      />,
     );
     expect(html).toContain("賽前參賽者名單");
     expect(html).toContain("每列一位參賽者");
+    expect(html).toContain("CSV 不必填組別");
     expect(html).toContain("姓名與成績會公開");
     expect(html).not.toMatch(/隊伍|隊名/);
   });
