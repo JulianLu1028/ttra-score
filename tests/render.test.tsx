@@ -51,6 +51,8 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).toContain("賽前參賽者名單");
     expect(html).toContain("每列一位參賽者");
     expect(html).toContain("CSV 不必填組別");
+    expect(html).toContain("下載新版三欄範本");
+    expect(html).toContain("新版範本固定只有三欄");
     expect(html).toContain("姓名與成績會公開");
     expect(html).not.toMatch(/隊伍|隊名/);
   });

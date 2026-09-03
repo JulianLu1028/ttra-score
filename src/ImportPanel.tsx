@@ -74,14 +74,14 @@ export function ImportPanel({
         <Button
           variant="outline"
           onClick={() =>
-            downloadCSV("TTRA-" + category.name + "名單範本.csv", [
+            downloadCSV("TTRA-" + category.name + "-新版三欄名單範本.csv", [
               ["參賽編號", "姓名", "梯次"],
               [participantNumber(categoryId, 1), "陳宥安", 1],
             ])
           }
         >
           <Download />
-          下載範本
+          下載新版三欄範本
         </Button>
       </div>
       <div className="form-body">
@@ -94,6 +94,9 @@ export function ImportPanel({
         <p className="hint">
           梯次請填數字：程式機械組 1–3，其餘組別
           1–2。梯次只分隔名單，不分開排名。
+        </p>
+        <p className="hint">
+          新版範本固定只有三欄：<strong>參賽編號、姓名、梯次</strong>。
         </p>
         <label className="field">
           <span>選擇參賽者 CSV 檔案</span>
