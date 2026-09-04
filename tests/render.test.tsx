@@ -27,7 +27,7 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).toContain('aria-label="第 2 梯名單"');
     expect(html).not.toContain("名次");
     expect(html).toContain("名單依參賽編號排列");
-    expect(html).toContain("#機A001");
+    expect(html).toContain("機A001");
     expect(html).not.toContain("學校");
     expect(html).not.toContain("academic-theme");
     expect(html).not.toMatch(/隊伍|隊名|TEAM CHECK-IN/);
@@ -40,7 +40,8 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).toContain("挑戰賽工作台");
     expect(html).toContain('aria-label="第 1 梯名單"');
     expect(html).toContain('aria-label="第 2 梯名單"');
-    expect(html).toContain("名次為全組總排名");
+    expect(html).toContain("本梯次排名");
+    expect(html).toContain("各梯次單獨計算名次");
   });
   it("匯入介面使用單人賽用詞並提醒姓名將公開", () => {
     const html = renderToString(

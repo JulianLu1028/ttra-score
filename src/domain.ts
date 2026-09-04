@@ -229,22 +229,37 @@ export function leaderboard(
       (a.secondary ?? Infinity) - (b.secondary ?? Infinity)
     );
   });
-  let last: Omit<Result, "rank"> | undefined,
-    lastRank = 0;
-  return base.map((r, i) => {
+  const heatRanks = new Map<
+    number,
+    {
+      last?: Omit<Result, "rank">;
+      lastRank: number;
+      position: number;
+    }
+  >();
+  return base.map((r) => {
+    const state = heatRanks.get(r.team.heat) ?? {
+      lastRank: 0,
+      position: 0,
+    };
+    state.position += 1;
     const same =
-      last &&
+      state.last &&
       r.primary !== null &&
-      cmp(r.primary, last.primary!) &&
-      ((r.secondary === null && last.secondary === null) ||
+      cmp(r.primary, state.last.primary!) &&
+      ((r.secondary === null && state.last.secondary === null) ||
         (r.secondary !== null &&
-          last.secondary !== null &&
-          cmp(r.secondary, last.secondary)));
-    if (!same) lastRank = i + 1;
-    last = r;
+          state.last.secondary !== null &&
+          cmp(r.secondary, state.last.secondary)));
+    if (!same) state.lastRank = state.position;
+    state.last = r;
+    heatRanks.set(r.team.heat, state);
     return {
       ...r,
-      rank: r.primary === null || categoryId === "preschool" ? null : lastRank,
+      rank:
+        r.primary === null || categoryId === "preschool"
+          ? null
+          : state.lastRank,
     };
   });
 }

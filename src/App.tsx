@@ -724,7 +724,7 @@ export default function App() {
                           onClick={() =>
                             downloadCSV(category.name + "-成績.csv", [
                               [
-                                "名次",
+                                "本梯名次",
                                 "參賽編號",
                                 "姓名",
                                 "組別",
@@ -758,7 +758,7 @@ export default function App() {
                         ? "依梯次分區，名單依參賽編號排列。"
                         : group === "preschool"
                           ? "依梯次分區，本組不排名。"
-                          : "依梯次分區；顯示的名次是同組所有梯次合併計算的總排名。"}
+                          : "依梯次分區，各梯次單獨計算名次。"}
                     </p>
                     {loading ? (
                       <div className="empty-state">正在取得成績…</div>
@@ -800,7 +800,7 @@ export default function App() {
                                   人
                                   {route === "staff" &&
                                     group !== "preschool" &&
-                                    " · 名次為全組總排名"}
+                                    " · 本梯次排名"}
                                 </span>
                               </div>
                               {!visible.some((r) => r.team.heat === heat) && (

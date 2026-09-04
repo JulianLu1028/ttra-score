@@ -256,27 +256,35 @@ describe("CSV", () => {
     ]));
 });
 describe("梯次與組別統計", () => {
-  it("梯次只分組顯示，不改變跨梯次總排名", () => {
-    const entrants = [1, 2, 3].map((heat) => ({
-      ...team("program", String(heat)),
-      heat,
-    }));
-    const attempts = [1, 2, 3].map((heat) =>
+  it("各梯次單獨計算名次", () => {
+    const entrants = [
+      { ...team("program", "A1"), heat: 1 },
+      { ...team("program", "A2"), heat: 1 },
+      { ...team("program", "B1"), heat: 2 },
+      { ...team("program", "B2"), heat: 2 },
+    ];
+    const seconds: Record<string, number> = {
+      A1: 15,
+      A2: 18,
+      B1: 20,
+      B2: 10,
+    };
+    const attempts = entrants.map((entrant) =>
       attempt(
         "program",
-        { completed: 1, seconds: 15 - heat, weight: 600 },
+        { completed: 1, seconds: seconds[entrant.id], weight: 600 },
         "round-1",
         "valid",
-        String(heat),
+        entrant.id,
       ),
     );
-    const results = leaderboard(entrants, attempts, "program");
-    expect(results.map((r) => [r.team.heat, r.rank])).toEqual([
-      [3, 1],
-      [2, 2],
-      [1, 3],
-    ]);
-    expect(results.filter((r) => r.team.heat === 1)[0].rank).toBe(3);
+    const ranks = Object.fromEntries(
+      leaderboard(entrants, attempts, "program").map((r) => [
+        r.team.id,
+        r.rank,
+      ]),
+    );
+    expect(ranks).toEqual({ A1: 1, A2: 2, B1: 2, B2: 1 });
   });
   it("統計只計本組並要求所有回合；無效回合仍算已登錄", () => {
     const entrants = [

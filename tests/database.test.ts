@@ -22,15 +22,15 @@ const prefixes: Record<string, string> = {
   program: "程",
   creative: "機",
 };
-async function createTeam(category = "power", number?: string) {
-  number ??= prefixes[category] + "A001";
+async function createTeam(category = "power", number?: string, heat = 1) {
+  number ??= prefixes[category] + String.fromCharCode(64 + heat) + "001";
   await asUser(admin);
   await db.query("select public.import_teams($1)", [
     JSON.stringify([
       {
         team_number: number,
         name: "陳宥安",
-        heat: 1,
+        heat,
         category_id: category,
       },
     ]),
@@ -89,6 +89,7 @@ beforeAll(async () => {
     "003_academic.sql",
     "004_participant_numbering.sql",
     "005_heat_numbering.sql",
+    "006_rank_by_heat.sql",
   ])
     await db.exec(
       readFileSync(
@@ -521,7 +522,7 @@ describe("Supabase/Postgres 整合與權限", () => {
       for (let i = 1; i <= 4; i++) {
         const id = await createTeam(
           category,
-          prefixes[category] + String(i + 1).padStart(3, "0"),
+          prefixes[category] + "A" + String(i + 1).padStart(3, "0"),
         );
         if (category === "preschool")
           await submit(
@@ -590,6 +591,41 @@ describe("Supabase/Postgres 整合與權限", () => {
         expect(client.qualified).toEqual(sql.qualified);
       }
   });
+  it("資料庫依梯次單獨計算名次", async () => {
+    const entries = [
+      ["程A001", 1, 15],
+      ["程A002", 1, 18],
+      ["程B001", 2, 20],
+      ["程B002", 2, 10],
+    ] as const;
+    const ids = new Map<string, string>();
+    for (const [number, heat, seconds] of entries) {
+      const id = await createTeam("program", number, heat);
+      ids.set(number, id);
+      await submit(
+        input(id, "program", "round-1", {
+          completed: 1,
+          seconds,
+          weight: 600,
+        }),
+      );
+    }
+    const { rows } = await db.query<{ team_id: string; rank: number }>(
+      "select team_id,rank from public.results",
+    );
+    const rankByNumber = Object.fromEntries(
+      entries.map(([number]) => [
+        number,
+        rows.find((row) => row.team_id === ids.get(number))?.rank,
+      ]),
+    );
+    expect(rankByNumber).toEqual({
+      程A001: 1,
+      程A002: 2,
+      程B001: 2,
+      程B002: 1,
+    });
+  });
   it("匯入重複會整批回滾，不覆蓋既有資料", async () => {
     await createTeam();
     await expect(
@@ -605,7 +641,7 @@ describe("Supabase/Postgres 整合與權限", () => {
             team_number: "動A001",
             name: "Overwrite",
             category_id: "power",
-            heat: 2,
+            heat: 1,
           },
         ]),
       ]),
