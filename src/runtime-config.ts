@@ -7,7 +7,9 @@ export const STAFF_LOGIN_ID = "staff@ttra-score.invalid";
 // so the production credential can be migrated without login downtime.
 export function staffAuthPassword(value: string) {
   const input = value.trim();
-  return /^\d{4}$/.test(input) ? "Ttra!" + input : input;
+  return /^\d{4}$/.test(input)
+    ? `TTRA-2026-Scoreboard!Staff-PIN-${input}-Q7vL9xR2`
+    : input;
 }
 
 export function staffPinUpdateError(error: unknown) {

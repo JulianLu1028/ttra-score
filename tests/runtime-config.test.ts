@@ -7,7 +7,9 @@ import {
 
 describe("staff PIN compatibility", () => {
   it("converts a four-digit PIN to the Supabase technical password", () => {
-    expect(staffAuthPassword(" 1234 ")).toBe("Ttra!1234");
+    expect(staffAuthPassword(" 1234 ")).toBe(
+      "TTRA-2026-Scoreboard!Staff-PIN-1234-Q7vL9xR2",
+    );
   });
   it("keeps the existing password usable during migration", () => {
     expect(staffAuthPassword("existing-long-password")).toBe(
