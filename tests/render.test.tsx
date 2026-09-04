@@ -107,10 +107,11 @@ it("學科家長入口不渲染內部登分功能", () => {
   expect(html).not.toContain("工作人員入口");
   expect(html).not.toMatch(/href="[^"]*\/staff"/);
 });
-it("工作台只要求密碼，不顯示帳號或 Email 欄位", () => {
+it("工作台只要求 PIN 碼，不顯示帳號或 Email 欄位", () => {
   const html = renderToString(<Login />);
   expect(html).toContain('type="password"');
-  expect(html).toContain("工作人員密碼");
+  expect(html).toContain("工作人員 PIN 碼");
+  expect(html).toContain("4 位數 PIN 碼");
   expect(html).not.toContain('type="email"');
   expect(html).not.toContain("staff@ttra-score.invalid");
   expect(html).not.toContain("登入連結");

@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { runtimeConfig } from "../src/runtime-config";
+import { runtimeConfig, staffAuthPassword } from "../src/runtime-config";
+
+describe("staff PIN compatibility", () => {
+  it("converts a four-digit PIN to the Supabase technical password", () => {
+    expect(staffAuthPassword(" 1234 ")).toBe("Ttra!1234");
+  });
+  it("keeps the existing password usable during migration", () => {
+    expect(staffAuthPassword("existing-long-password")).toBe(
+      "existing-long-password",
+    );
+  });
+});
 
 describe("production-only runtime", () => {
   it.each(["production", "development", "demo"])(

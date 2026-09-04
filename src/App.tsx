@@ -60,7 +60,7 @@ import {
   type ServerResult,
 } from "./data";
 import { isDemoMode, supabase } from "./supabase";
-import { STAFF_LOGIN_ID } from "./runtime-config";
+import { STAFF_LOGIN_ID, staffAuthPassword } from "./runtime-config";
 import { ScoreForm } from "./ScoreForm";
 import { ImportPanel } from "./ImportPanel";
 import { CategoryTabs } from "./CategoryTabs";
@@ -1042,7 +1042,7 @@ export function Login() {
       if (!supabase) throw new Error("正式連線尚未設定");
       const { error } = await supabase.auth.signInWithPassword({
         email: STAFF_LOGIN_ID,
-        password,
+        password: staffAuthPassword(password),
       });
       if (error) {
         setError(
@@ -1063,11 +1063,11 @@ export function Login() {
       <ShieldCheck size={30} />
       <h2>工作人員登入</h2>
       <p className="muted">
-        請輸入主辦人提供的共用密碼。家長查看成績不需登入。
+        請輸入主辦人提供的 4 位數 PIN 碼。家長查看成績不需登入。
       </p>
       <form onSubmit={send}>
         <label className="field">
-          <span>工作人員密碼</span>
+          <span>工作人員 PIN 碼</span>
           <Input
             type="password"
             autoComplete="current-password"
@@ -1075,7 +1075,7 @@ export function Login() {
             onChange={(e) => setPassword(e.target.value)}
             required
             disabled={busy}
-            placeholder="輸入工作人員密碼"
+            placeholder="輸入 4 位數 PIN 碼"
           />
         </label>
         <Button type="submit" className="primary-action" disabled={busy}>

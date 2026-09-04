@@ -10,8 +10,8 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { categories, heatNumbers, type CategoryId, type Team } from "./domain";
-import { parseTeams, downloadCSV, participantNumber } from "./csv";
+import { categories, type CategoryId, type Team } from "./domain";
+import { parseTeams, downloadCSV, challengeRosterTemplate } from "./csv";
 import type { ImportTeam } from "./data";
 import { CategoryTabs } from "./CategoryTabs";
 export function ImportPanel({
@@ -79,13 +79,10 @@ export function ImportPanel({
           <Button
             variant="outline"
             onClick={() =>
-              downloadCSV("TTRA-" + category.name + "名單範本.csv", [
-                ["參賽編號", "姓名"],
-                ...heatNumbers(categoryId).map((heat) => [
-                  participantNumber(categoryId, heat, 1),
-                  "王小明",
-                ]),
-              ])
+              downloadCSV(
+                "TTRA-" + category.name + "名單範本-參賽編號姓名.csv",
+                challengeRosterTemplate(categoryId),
+              )
             }
           >
             <Download />

@@ -26,6 +26,15 @@ export function participantNumber(
     String(sequence).padStart(3, "0")
   );
 }
+export function challengeRosterTemplate(categoryId: CategoryId) {
+  return [
+    ["參賽編號", "姓名"],
+    ...Array.from({ length: heatCount(categoryId) }, (_, index) => [
+      participantNumber(categoryId, index + 1, 1),
+      "王小明",
+    ]),
+  ];
+}
 export function normalizeParticipantNumber(value: string) {
   return value.normalize("NFKC").trim().toUpperCase();
 }

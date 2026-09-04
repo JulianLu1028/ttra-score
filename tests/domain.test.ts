@@ -17,6 +17,7 @@ import {
   parseCSV,
   parseTeams,
   participantNumber,
+  challengeRosterTemplate,
   toCSV,
 } from "../src/csv";
 import { demoTeams, demoAttempts } from "../src/demo";
@@ -247,6 +248,33 @@ describe("CSV", () => {
     expect(participantNumber("preschool", 2, 1)).toBe("幼B001");
     expect(participantNumber("program", 3, 27)).toBe("程C027");
     expect(() => participantNumber("creative", 3, 1)).toThrow("範圍");
+  });
+  it("四個項目的下載範本固定只有編號與姓名兩欄", () => {
+    expect(challengeRosterTemplate("preschool")).toEqual([
+      ["參賽編號", "姓名"],
+      ["幼A001", "王小明"],
+      ["幼B001", "王小明"],
+    ]);
+    expect(challengeRosterTemplate("power")).toEqual([
+      ["參賽編號", "姓名"],
+      ["動A001", "王小明"],
+      ["動B001", "王小明"],
+    ]);
+    expect(challengeRosterTemplate("program")).toEqual([
+      ["參賽編號", "姓名"],
+      ["程A001", "王小明"],
+      ["程B001", "王小明"],
+      ["程C001", "王小明"],
+    ]);
+    expect(challengeRosterTemplate("creative")).toEqual([
+      ["參賽編號", "姓名"],
+      ["機A001", "王小明"],
+      ["機B001", "王小明"],
+    ]);
+    for (const category of categories)
+      expect(
+        challengeRosterTemplate(category.id).every((row) => row.length === 2),
+      ).toBe(true);
   });
   it("匯出防止試算表公式注入", () =>
     expect(parseCSV(toCSV([["=1+1", "@evil", "正常"]]))[0]).toEqual([
