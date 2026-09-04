@@ -54,7 +54,8 @@ const mapTeam = (x: any): Team => ({
   name: x.name,
   heat: x.heat,
   categoryId: x.category_id,
-  checkinStatus: x.checkin_status,
+  checkinStatus: x.checkin_status === "checked_in" ? "checked_in" : "pending",
+  checkedInAt: x.checked_in_at ?? null,
 });
 export const mapAttempt = (x: any): Attempt => ({
   id: x.id,

@@ -9,6 +9,7 @@ import {
   categories,
   heatNumbers,
   compareParticipantNumbers,
+  maskParticipantName,
   type Team,
   type Attempt,
   type CategoryId,
@@ -29,6 +30,7 @@ const team = (categoryId: CategoryId, id = "1"): Team => ({
   name: "陳宥安",
   heat: 1,
   checkinStatus: "checked_in",
+  checkedInAt: "2026-10-04T01:00:00Z",
 });
 const attempt = (
   categoryId: CategoryId,
@@ -47,6 +49,11 @@ const attempt = (
   data,
 });
 describe("四組規則", () => {
+  it("家長端姓名只遮住第二個字元", () => {
+    expect(maskParticipantName("王小明")).toBe("王o明");
+    expect(maskParticipantName("歐陽小明")).toBe("歐o小明");
+    expect(maskParticipantName("王")).toBe("王");
+  });
   it("選手顯示順序依參賽編號，不受名次影響", () => {
     const entrants = [team("creative", "機A010"), team("creative", "機A002")];
     expect(

@@ -20,14 +20,16 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toMatch(/href="[^"]*\/staff"/);
     expect(html).toContain("科創機器人組");
     expect(html).toContain("姓名與成績皆為虛構");
-    expect(html).toContain("參賽人數");
-    expect(html).toContain("搜尋姓名或參賽編號");
+    expect(html).not.toContain("本組參賽人數");
+    expect(html).not.toContain("搜尋姓名或參賽編號");
     expect(html).toContain("全部梯次");
     expect(html).toContain('aria-label="第 1 梯名單"');
     expect(html).toContain('aria-label="第 2 梯名單"');
     expect(html).not.toContain("名次");
     expect(html).toContain("名單依參賽編號排列");
     expect(html).toContain("機A001");
+    expect(html).toContain("報到");
+    expect(html).toMatch(/[\u4e00-\u9fff]o[\u4e00-\u9fff]/);
     expect(html).not.toContain("學校");
     expect(html).not.toContain("academic-theme");
     expect(html).not.toMatch(/隊伍|隊名|TEAM CHECK-IN/);
@@ -42,8 +44,11 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).toContain('aria-label="第 2 梯名單"');
     expect(html).toContain("本梯次排名");
     expect(html).toContain("各梯次單獨計算名次");
+    expect(html).not.toContain("參賽者報到");
+    expect(html).toContain("尚未報到");
+    expect(html).toContain("已報到");
   });
-  it("匯入介面使用單人賽用詞並提醒姓名將公開", () => {
+  it("匯入介面使用單人賽用詞並說明家長端姓名遮罩", () => {
     const html = renderToString(
       <ImportPanel
         teams={[]}
@@ -61,7 +66,8 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).toContain("下載範本");
     expect(html).toContain("不必填組別或梯次");
     expect(html).toContain("幼／動／程／機");
-    expect(html).toContain("姓名與成績會公開");
+    expect(html).toContain("完整姓名僅工作人員可見");
+    expect(html).toContain("姓名第二字顯示為 o");
     expect(html).not.toMatch(/隊伍|隊名/);
   });
   it("項目按鈕使用正式比賽名稱", () => {
@@ -83,6 +89,7 @@ describe("非瀏覽器渲染檢查", () => {
         heat: 1,
         categoryId: c.id,
         checkinStatus: "checked_in",
+        checkedInAt: "2026-10-04T01:00:00Z",
       };
       const html = renderToString(
         <ScoreForm

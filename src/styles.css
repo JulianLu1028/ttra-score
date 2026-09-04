@@ -201,11 +201,69 @@ a:focus-visible {
   border-radius: 4px;
   white-space: nowrap;
 }
+.status-badge {
+  min-width: 92px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+}
+.status-not-checked {
+  color: #754c00;
+  background: #fff0bd;
+  border-color: #e2b43d;
+}
+.status-waiting {
+  color: #174f88;
+  background: #e1efff;
+  border-color: #83b6e8;
+}
+.status-success {
+  color: #0d6435;
+  background: #d9f5e4;
+  border-color: #61b984;
+}
+.status-incomplete {
+  color: #912e26;
+  background: #fde5e2;
+  border-color: #df8a82;
+}
 .score-row .team-cell {
   text-align: left;
   border: 0;
   background: none;
   padding: 0;
+}
+.participant-name-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+}
+.checkin-time {
+  color: #236a58;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.checkin-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #68756d;
+  font-size: 12px;
+  font-weight: 650;
+}
+.checkin-control [data-slot="native-select-wrapper"] {
+  width: 126px;
+}
+.checkin-control select {
+  min-height: 40px;
+  font-size: 14px;
 }
 .team-cell:hover strong {
   text-decoration: underline;
@@ -466,6 +524,12 @@ a:focus-visible {
   .score-row .team-cell {
     flex-basis: calc(100% - 130px);
   }
+  .staff-page .score-row .team-cell {
+    flex-basis: calc(100% - 54px);
+  }
+  .staff-page .checkin-control {
+    margin-left: 36px;
+  }
   .score-row .result-status {
     margin-left: 36px;
     flex-direction: row;
@@ -506,6 +570,10 @@ a:focus-visible {
   .score-row [data-slot="native-select-wrapper"] {
     max-width: 130px;
     margin-left: auto;
+  }
+  .status-badge {
+    min-width: auto;
+    font-size: 11px;
   }
 }
 .site-header {

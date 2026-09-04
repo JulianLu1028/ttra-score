@@ -90,6 +90,7 @@ beforeAll(async () => {
     "004_participant_numbering.sql",
     "005_heat_numbering.sql",
     "006_rank_by_heat.sql",
+    "007_checkin_time_and_public_names.sql",
   ])
     await db.exec(
       readFileSync(
@@ -375,10 +376,18 @@ afterAll(async () => {
 describe("Supabase/Postgres 整合與權限", () => {
   it("匿名只能讀取公開成績，不能直接寫入", async () => {
     await createTeam();
+    const staffBoard = (
+      await db.query<{ board: any }>("select public.get_scoreboard() board")
+    ).rows[0].board;
+    expect(staffBoard.teams[0].name).toBe("陳宥安");
     await asUser(null, "anon");
-    expect(
-      (await db.query("select public.get_scoreboard()")).rows,
-    ).toHaveLength(1);
+    const publicBoard = (
+      await db.query<{ board: any }>("select public.get_scoreboard() board")
+    ).rows[0].board;
+    expect(publicBoard.teams[0].name).toBe("陳o安");
+    await expect(db.query("select * from public.teams")).rejects.toThrow(
+      /permission denied/,
+    );
     await expect(
       db.query("update public.teams set name='Hacked'"),
     ).rejects.toThrow(/permission denied/);
@@ -393,6 +402,24 @@ describe("Supabase/Postgres 整合與權限", () => {
     const id = await createTeam();
     await asUser(outsider);
     await expect(submit(input(id))).rejects.toThrow("沒有操作權限");
+  });
+  it("裁判可在計分名單報到，且只接受兩種報到狀態", async () => {
+    const id = await createTeam("power");
+    await asUser(admin);
+    await db.query("select public.set_checkin($1,'pending')", [id]);
+    await asUser(judge);
+    await db.query("select public.set_checkin($1,'checked_in')", [id]);
+    const checked = (
+      await db.query<{ checkin_status: string; checked_in_at: string }>(
+        "select checkin_status,checked_in_at from public.teams where id=$1",
+        [id],
+      )
+    ).rows[0];
+    expect(checked.checkin_status).toBe("checked_in");
+    expect(checked.checked_in_at).toBeTruthy();
+    await expect(
+      db.query("select public.set_checkin($1,'absent')", [id]),
+    ).rejects.toThrow("報到狀態不正確");
   });
   it("報到人員不能計分、裁判不能匯入且不能跨組", async () => {
     const id = await createTeam("creative");
@@ -564,6 +591,7 @@ describe("Supabase/Postgres 整合與權限", () => {
       heat: t.heat,
       categoryId: t.category_id,
       checkinStatus: t.checkin_status,
+      checkedInAt: t.checked_in_at,
     }));
     const attempts: Attempt[] = board.attempts.map((a: any) => ({
       id: a.id,

@@ -25,6 +25,7 @@ const names = [
   "蘇禹丞",
   "莊庭萱",
 ];
+const now = new Date().toISOString();
 // Fictional individual entrants; keep IDs stable so sample scores stay linked.
 export const demoTeams: Team[] = (
   ["preschool", "power", "program", "creative"] as CategoryId[]
@@ -44,11 +45,11 @@ export const demoTeams: Team[] = (
         heat,
         categoryId,
         checkinStatus: i < 5 ? "checked_in" : "pending",
+        checkedInAt: i < 5 ? now : null,
       };
     },
   ),
 );
-const now = new Date().toISOString();
 let id = 0;
 export const demoAttempts: Attempt[] = demoTeams.flatMap((t, i): Attempt[] => {
   if (i % 6 > 3) return [];

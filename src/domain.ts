@@ -1,5 +1,5 @@
 export type CategoryId = "preschool" | "power" | "program" | "creative";
-export type CheckinStatus = "pending" | "checked_in" | "absent" | "withdrawn";
+export type CheckinStatus = "pending" | "checked_in";
 // One record is one individual entrant; the legacy identifier preserves API compatibility.
 export type Team = {
   id: string;
@@ -8,7 +8,14 @@ export type Team = {
   heat: number;
   categoryId: CategoryId;
   checkinStatus: CheckinStatus;
+  checkedInAt: string | null;
 };
+export function maskParticipantName(name: string) {
+  const characters = Array.from(name.trim());
+  if (characters.length < 2) return characters.join("");
+  characters[1] = "o";
+  return characters.join("");
+}
 export function compareParticipantNumbers(
   left: Pick<Team, "number">,
   right: Pick<Team, "number">,

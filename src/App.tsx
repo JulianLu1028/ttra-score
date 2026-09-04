@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   Download,
   LogOut,
-  ClipboardCheck,
   History,
   Upload,
   ShieldCheck,
@@ -38,6 +37,7 @@ import {
   slotOptions,
   teamResult,
   attemptSummary,
+  maskParticipantName,
   type Team,
   type Attempt,
   type CategoryId,
@@ -68,8 +68,6 @@ import { downloadCSV } from "./csv";
 const checkinLabels: Record<CheckinStatus, string> = {
   pending: "尚未報到",
   checked_in: "已報到",
-  absent: "缺席",
-  withdrawn: "取消參賽",
 };
 const rules: Record<CategoryId, string> = {
   preschool:
@@ -81,6 +79,27 @@ const rules: Record<CategoryId, string> = {
   creative:
     "每次限時 40 秒，到時保留得分。普通瓶 10 分，特殊瓶正確 20 分、錯誤 5 分。取最高單次，同分取耗時較短。50 分以上合格。",
 };
+function challengeStatus(
+  result: { team: Team; qualified: boolean; primary: number | null },
+  attemptCount: number,
+) {
+  if (result.team.checkinStatus !== "checked_in")
+    return { label: "尚未報到", tone: "status-not-checked" };
+  if (result.qualified) return { label: "挑戰成功", tone: "status-success" };
+  if (attemptCount === 0) return { label: "等待挑戰", tone: "status-waiting" };
+  if (result.primary === null)
+    return { label: "尚無有效成績", tone: "status-incomplete" };
+  return { label: "目前未達合格", tone: "status-incomplete" };
+}
+function checkinTime(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 export default function App() {
   const [route, setRoute] = useState(
     location.hash.endsWith("/staff") ? "staff" : "public",
@@ -273,9 +292,10 @@ export default function App() {
     (r) =>
       (route === "staff" || !onlyFavorites || favorites.includes(r.team.id)) &&
       (heatFilter === "all" || r.team.heat === Number(heatFilter)) &&
-      (r.team.number + " " + r.team.name)
-        .toLowerCase()
-        .includes(query.toLowerCase()),
+      (route !== "staff" ||
+        (r.team.number + " " + r.team.name)
+          .toLowerCase()
+          .includes(query.toLowerCase())),
   );
   const inScope = (t: Team) =>
     staff &&
@@ -284,7 +304,10 @@ export default function App() {
       staff.categoryIds.includes(t.categoryId));
   const canScore = staff && (staff.role === "judge" || staff.role === "admin");
   const canCheck =
-    staff && (staff.role === "checkin" || staff.role === "admin");
+    staff &&
+    (staff.role === "judge" ||
+      staff.role === "checkin" ||
+      staff.role === "admin");
   const canUseWorkspace = Boolean(
     staff && (isDemoMode || (session && !authLoading)),
   );
@@ -296,7 +319,16 @@ export default function App() {
         throw new Error("已有成績，不可取消報到；請由主辦人先處理成績");
       await setCheckin(t.id, status);
       setTeams((v) =>
-        v.map((x) => (x.id === t.id ? { ...x, checkinStatus: status } : x)),
+        v.map((x) =>
+          x.id === t.id
+            ? {
+                ...x,
+                checkinStatus: status,
+                checkedInAt:
+                  status === "checked_in" ? new Date().toISOString() : null,
+              }
+            : x,
+        ),
       );
       setUpdated(new Date());
     } catch (e) {
@@ -353,6 +385,7 @@ export default function App() {
           ...r,
           id: crypto.randomUUID(),
           checkinStatus: "pending" as const,
+          checkedInAt: null,
         })),
       ]);
     else await refresh();
@@ -416,7 +449,9 @@ export default function App() {
           )}
         </div>
       </header>
-      <main className="page">
+      <main
+        className={`page ${route === "public" ? "public-page" : "staff-page"}`}
+      >
         <section className="page-intro">
           <div>
             <p className="eyebrow">2026 機器人實作技能檢定 暨 挑戰賽</p>
@@ -472,47 +507,53 @@ export default function App() {
         )}
         {(route === "public" || canUseWorkspace) && (
           <>
-            <section className="stats">
-              <div>
-                <Users />
-                <span>
-                  本組參賽人數
-                  <strong>
-                    {stats.total.toString().padStart(2, "0")} <small>人</small>
-                  </strong>
-                </span>
-              </div>
-              <div>
-                <CheckCircle2 />
-                <span>
-                  本組已報到
-                  <strong>
-                    {stats.checkedIn} <small>人</small>
-                  </strong>
-                </span>
-              </div>
-              <div>
-                <Trophy />
-                <span>
-                  已完成全部回合
-                  <strong>
-                    {stats.completed} <small>人</small>
-                  </strong>
-                </span>
-              </div>
-              <div>
-                <Radio />
-                <span>
-                  本組梯次
-                  <strong>
-                    {heatNumbers(group).length} <small>梯</small>
-                  </strong>
-                </span>
-              </div>
-            </section>
-            <p className="stats-caption">
-              {category.name} · 統計包含本組所有梯次，不受搜尋或梯次篩選影響。
-            </p>
+            {route === "staff" && (
+              <>
+                <section className="stats">
+                  <div>
+                    <Users />
+                    <span>
+                      本組參賽人數
+                      <strong>
+                        {stats.total.toString().padStart(2, "0")}{" "}
+                        <small>人</small>
+                      </strong>
+                    </span>
+                  </div>
+                  <div>
+                    <CheckCircle2 />
+                    <span>
+                      本組已報到
+                      <strong>
+                        {stats.checkedIn} <small>人</small>
+                      </strong>
+                    </span>
+                  </div>
+                  <div>
+                    <Trophy />
+                    <span>
+                      已完成全部回合
+                      <strong>
+                        {stats.completed} <small>人</small>
+                      </strong>
+                    </span>
+                  </div>
+                  <div>
+                    <Radio />
+                    <span>
+                      本組梯次
+                      <strong>
+                        {heatNumbers(group).length} <small>梯</small>
+                      </strong>
+                    </span>
+                  </div>
+                </section>
+                <p className="stats-caption">
+                  {category.name} ·
+                  統計包含本組所有梯次，不受搜尋或梯次篩選影響。
+                </p>
+              </>
+            )}
             {route === "staff" && (
               <div className="staff-tabs">
                 {canScore && (
@@ -525,18 +566,6 @@ export default function App() {
                   >
                     <Trophy />
                     裁判計分
-                  </Button>
-                )}
-                {canCheck && (
-                  <Button
-                    variant={tab === "checkin" ? "default" : "outline"}
-                    onClick={() => {
-                      setTab("checkin");
-                      setSelected(null);
-                    }}
-                  >
-                    <ClipboardCheck />
-                    參賽者報到
                   </Button>
                 )}
                 {staff?.role === "admin" && (
@@ -654,11 +683,7 @@ export default function App() {
                     <div className="panel-heading">
                       <div>
                         <p className="eyebrow">
-                          {route === "staff"
-                            ? tab === "checkin"
-                              ? "PARTICIPANT CHECK-IN"
-                              : "JUDGE SCORING"
-                            : "LIVE RESULTS"}{" "}
+                          {route === "staff" ? "JUDGE SCORING" : "LIVE RESULTS"}{" "}
                           · {category.subtitle}
                         </p>
                         <h2>{category.name}</h2>
@@ -689,15 +714,17 @@ export default function App() {
                       </div>
                     </div>
                     <div className="toolbar">
-                      <div className="search-box">
-                        <Search size={17} />
-                        <Input
-                          aria-label="搜尋參賽者"
-                          placeholder="搜尋姓名或參賽編號"
-                          value={query}
-                          onChange={(e) => setQuery(e.target.value)}
-                        />
-                      </div>
+                      {route === "staff" && (
+                        <div className="search-box">
+                          <Search size={17} />
+                          <Input
+                            aria-label="搜尋參賽者"
+                            placeholder="搜尋姓名或參賽編號"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                          />
+                        </div>
+                      )}
                       <label className="heat-filter">
                         <span>梯次</span>
                         <NativeSelect
@@ -767,15 +794,14 @@ export default function App() {
                       <div className="empty-state">正在取得成績…</div>
                     ) : visible.length === 0 ? (
                       <div className="empty-state">
-                        <Search />
                         <h3>
-                          {stats.total
+                          {route === "staff" && stats.total
                             ? "找不到符合的參賽者"
                             : "參賽者名單尚未公布"}
                         </h3>
                         <p className="muted">
-                          {stats.total
-                            ? "試試其他關鍵字，或取消關注篩選。"
+                          {route === "staff" && stats.total
+                            ? "試試其他關鍵字。"
                             : "請稍後再回來查看。"}
                         </p>
                       </div>
@@ -813,125 +839,120 @@ export default function App() {
                               )}
                               {visible
                                 .filter((r) => r.team.heat === heat)
-                                .map((r) => (
-                                  <div className="score-row" key={r.team.id}>
-                                    {route === "staff" && (
-                                      <strong className="rank">
-                                        {group === "preschool"
-                                          ? "—"
-                                          : r.rank
-                                            ? String(r.rank).padStart(2, "0")
-                                            : "—"}
-                                      </strong>
-                                    )}
-                                    <button
-                                      className="team-cell"
-                                      onClick={() => setDetail(r.team)}
-                                    >
-                                      <strong>{r.team.name}</strong>
-                                      <small>
-                                        #{r.team.number} · 第 {r.team.heat} 梯
-                                      </small>
-                                    </button>
-                                    {route === "staff" &&
-                                    (tab === "checkin" ||
-                                      staff?.role === "checkin") ? (
-                                      <>
-                                        <span
-                                          className={
-                                            "tag " +
-                                            (r.team.checkinStatus ===
-                                            "checked_in"
-                                              ? "success-tag"
-                                              : "")
-                                          }
-                                        >
-                                          {checkinLabels[r.team.checkinStatus]}
-                                        </span>
-                                        <NativeSelect
-                                          aria-label={r.team.name + " 報到狀態"}
-                                          disabled={
-                                            !online ||
-                                            checkinBusy === r.team.id ||
-                                            !canCheck ||
-                                            !inScope(r.team)
-                                          }
-                                          value={r.team.checkinStatus}
-                                          onChange={(e) =>
-                                            void checkin(
-                                              r.team,
-                                              e.target.value as CheckinStatus,
-                                            )
-                                          }
-                                        >
-                                          {Object.entries(checkinLabels).map(
-                                            ([k, v]) => (
-                                              <option key={k} value={k}>
-                                                {v}
-                                              </option>
-                                            ),
+                                .map((r) => {
+                                  const attemptCount = attempts.filter(
+                                      (a) => a.teamId === r.team.id,
+                                    ).length,
+                                    state = challengeStatus(r, attemptCount),
+                                    displayName =
+                                      route === "public"
+                                        ? maskParticipantName(r.team.name)
+                                        : r.team.name,
+                                    arrivedAt = checkinTime(r.team.checkedInAt);
+                                  return (
+                                    <div className="score-row" key={r.team.id}>
+                                      {route === "staff" && (
+                                        <strong className="rank">
+                                          {group === "preschool"
+                                            ? "—"
+                                            : r.rank
+                                              ? String(r.rank).padStart(2, "0")
+                                              : "—"}
+                                        </strong>
+                                      )}
+                                      <button
+                                        className="team-cell"
+                                        onClick={() => setDetail(r.team)}
+                                      >
+                                        <span className="participant-name-line">
+                                          <strong>{displayName}</strong>
+                                          {route === "public" && arrivedAt && (
+                                            <time
+                                              className="checkin-time"
+                                              dateTime={
+                                                r.team.checkedInAt ?? ""
+                                              }
+                                            >
+                                              報到 {arrivedAt}
+                                            </time>
                                           )}
-                                        </NativeSelect>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <div className="result-status">
-                                          <span
-                                            className={
-                                              r.qualified
-                                                ? "success-tag"
-                                                : "tag"
+                                        </span>
+                                        <small>
+                                          #{r.team.number} · 第 {r.team.heat} 梯
+                                        </small>
+                                      </button>
+                                      {route === "staff" && (
+                                        <label className="checkin-control">
+                                          <span>報到</span>
+                                          <NativeSelect
+                                            aria-label={
+                                              r.team.name + " 報到狀態"
+                                            }
+                                            disabled={
+                                              !online ||
+                                              checkinBusy === r.team.id ||
+                                              !canCheck ||
+                                              !inScope(r.team)
+                                            }
+                                            value={r.team.checkinStatus}
+                                            onChange={(e) =>
+                                              void checkin(
+                                                r.team,
+                                                e.target.value as CheckinStatus,
+                                              )
                                             }
                                           >
-                                            {r.qualified
-                                              ? "挑戰成功"
-                                              : r.primary === null
-                                                ? attempts.some(
-                                                    (a) =>
-                                                      a.teamId === r.team.id,
-                                                  )
-                                                  ? "尚無有效總成績"
-                                                  : "尚未出場"
-                                                : "目前未達合格"}
-                                          </span>
+                                            <option value="pending">
+                                              尚未報到
+                                            </option>
+                                            <option value="checked_in">
+                                              已報到
+                                            </option>
+                                          </NativeSelect>
+                                        </label>
+                                      )}
+                                      <div className="result-status">
+                                        <span
+                                          className={
+                                            "status-badge " + state.tone
+                                          }
+                                        >
+                                          {state.label}
+                                        </span>
+                                        <small>
+                                          {attemptCount}/
+                                          {slotOptions(group).length} 回合
+                                        </small>
+                                      </div>
+                                      <div className="result-numbers">
+                                        <strong className="score-number">
+                                          {r.primary === null
+                                            ? "—"
+                                            : group === "program"
+                                              ? r.primary.toFixed(1)
+                                              : r.primary}
                                           <small>
-                                            {
-                                              attempts.filter(
-                                                (a) => a.teamId === r.team.id,
-                                              ).length
-                                            }
-                                            /{slotOptions(group).length} 回合
+                                            {group === "preschool"
+                                              ? "球"
+                                              : group === "power"
+                                                ? "瓶"
+                                                : group === "program"
+                                                  ? "秒"
+                                                  : "分"}
                                           </small>
-                                        </div>
-                                        <div className="result-numbers">
-                                          <strong className="score-number">
-                                            {r.primary === null
-                                              ? "—"
-                                              : group === "program"
-                                                ? r.primary.toFixed(1)
-                                                : r.primary}
-                                            <small>
-                                              {group === "preschool"
-                                                ? "球"
-                                                : group === "power"
-                                                  ? "瓶"
-                                                  : group === "program"
-                                                    ? "秒"
-                                                    : "分"}
-                                            </small>
-                                          </strong>
-                                          {r.secondary !== null && (
-                                            <small>
-                                              {r.secondary.toFixed(1)}{" "}
-                                              {group === "program" ? "g" : "秒"}
-                                            </small>
-                                          )}
-                                        </div>
-                                        {route === "staff" ? (
+                                        </strong>
+                                        {r.secondary !== null && (
+                                          <small>
+                                            {r.secondary.toFixed(1)}{" "}
+                                            {group === "program" ? "g" : "秒"}
+                                          </small>
+                                        )}
+                                      </div>
+                                      {route === "staff" ? (
+                                        canScore && (
                                           <Button
                                             variant="outline"
                                             disabled={
-                                              !canScore ||
                                               !inScope(r.team) ||
                                               r.team.checkinStatus !==
                                                 "checked_in"
@@ -944,31 +965,31 @@ export default function App() {
                                               : "未報到"}
                                             <ChevronRight size={14} />
                                           </Button>
-                                        ) : (
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label={
-                                              (favorites.includes(r.team.id)
-                                                ? "取消關注"
-                                                : "關注") + r.team.name
+                                        )
+                                      ) : (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          aria-label={
+                                            (favorites.includes(r.team.id)
+                                              ? "取消關注"
+                                              : "關注") + displayName
+                                          }
+                                          onClick={() => star(r.team.id)}
+                                        >
+                                          <Star
+                                            size={17}
+                                            fill={
+                                              favorites.includes(r.team.id)
+                                                ? "#adc563"
+                                                : "none"
                                             }
-                                            onClick={() => star(r.team.id)}
-                                          >
-                                            <Star
-                                              size={17}
-                                              fill={
-                                                favorites.includes(r.team.id)
-                                                  ? "#adc563"
-                                                  : "none"
-                                              }
-                                            />
-                                          </Button>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                ))}
+                                          />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                             </section>
                           ))}
                       </div>
@@ -998,12 +1019,17 @@ export default function App() {
       >
         <DialogContent className="team-dialog">
           <DialogTitle>
-            {detail?.name} · #{detail?.number}
+            {detail &&
+              (route === "public"
+                ? maskParticipantName(detail.name)
+                : detail.name)}{" "}
+            · #{detail?.number}
           </DialogTitle>
           <DialogDescription>
             {detail && categories.find((c) => c.id === detail.categoryId)?.name}{" "}
             · 第 {detail?.heat} 梯 ·{" "}
             {detail && checkinLabels[detail.checkinStatus]}
+            {detail?.checkedInAt && ` ${checkinTime(detail.checkedInAt)} 報到`}
           </DialogDescription>
           {detail && (
             <>
