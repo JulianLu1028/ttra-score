@@ -12,48 +12,6 @@ export function staffAuthPassword(value: string) {
     : input;
 }
 
-export function staffPinUpdateError(error: unknown) {
-  const authError = error as {
-    message?: unknown;
-    status?: unknown;
-    code?: unknown;
-  };
-  const message =
-    typeof authError?.message === "string"
-      ? authError.message.replace(/\s+/g, " ").trim()
-      : "";
-  const status =
-    typeof authError?.status === "number" ? authError.status : undefined;
-
-  if (
-    /same password|different from (the )?(old|current) password/i.test(message)
-  ) {
-    return "這組 PIN 已經是目前的 PIN；請直接用它登入。";
-  }
-  if (/reauth|nonce|recent(ly)? signed in/i.test(message)) {
-    return "登入驗證已過期。請登出後用目前的密碼重新登入，再立即變更 PIN。";
-  }
-  if (status === 429 || /rate limit|too many requests/i.test(message)) {
-    return "嘗試次數過多，請稍候幾分鐘再試。";
-  }
-  if (/weak password|password.*(length|character|strength)/i.test(message)) {
-    return "Supabase 拒絕這組 PIN 的密碼格式，請聯絡系統管理員。";
-  }
-
-  const code =
-    typeof authError?.code === "string" && authError.code
-      ? ` / ${authError.code}`
-      : "";
-  const reference = status
-    ? `（${status}${code}）`
-    : code
-      ? `（${code.slice(3)}）`
-      : "";
-  return message
-    ? `PIN 碼更新失敗${reference}：${message.slice(0, 180)}`
-    : "PIN 碼更新失敗，請重新登入後再試。";
-}
-
 export function runtimeConfig(mode: string, url = "", key = "") {
   // Fictional records are available only to automated tests, never as a fallback
   // for a development server or a deployed site missing its real configuration.

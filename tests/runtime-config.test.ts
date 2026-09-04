@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  runtimeConfig,
-  staffAuthPassword,
-  staffPinUpdateError,
-} from "../src/runtime-config";
+import { runtimeConfig, staffAuthPassword } from "../src/runtime-config";
 
 describe("staff PIN compatibility", () => {
   it("converts a four-digit PIN to the Supabase technical password", () => {
@@ -14,33 +10,6 @@ describe("staff PIN compatibility", () => {
   it("keeps the existing password usable during migration", () => {
     expect(staffAuthPassword("existing-long-password")).toBe(
       "existing-long-password",
-    );
-  });
-  it("explains when the requested PIN is already active", () => {
-    expect(
-      staffPinUpdateError({
-        message: "New password should be different from the old password.",
-        status: 422,
-      }),
-    ).toBe("這組 PIN 已經是目前的 PIN；請直接用它登入。");
-  });
-  it("explains when Supabase requires a fresh login", () => {
-    expect(
-      staffPinUpdateError({
-        message: "Reauthentication needed",
-        status: 403,
-      }),
-    ).toContain("重新登入");
-  });
-  it("keeps an unknown Supabase error visible for diagnosis", () => {
-    expect(
-      staffPinUpdateError({
-        message: "Unexpected auth response",
-        status: 500,
-        code: "unexpected_failure",
-      }),
-    ).toBe(
-      "PIN 碼更新失敗（500 / unexpected_failure）：Unexpected auth response",
     );
   });
 });
