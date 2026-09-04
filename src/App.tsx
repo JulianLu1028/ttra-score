@@ -60,7 +60,11 @@ import {
   type ServerResult,
 } from "./data";
 import { isDemoMode, supabase } from "./supabase";
-import { STAFF_LOGIN_ID, staffAuthPassword } from "./runtime-config";
+import {
+  STAFF_LOGIN_ID,
+  staffAuthPassword,
+  staffPinUpdateError,
+} from "./runtime-config";
 import { ScoreForm } from "./ScoreForm";
 import { ImportPanel } from "./ImportPanel";
 import { CategoryTabs } from "./CategoryTabs";
@@ -193,8 +197,11 @@ export default function App() {
       });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_e, s) => {
+    } = supabase.auth.onAuthStateChange((event, s) => {
       authChanged = true;
+      // Updating a password emits USER_UPDATED before updateUser resolves. The
+      // session remains valid, so keep the staff record and PIN dialog mounted.
+      if (event === "USER_UPDATED") return;
       setStaff(null);
       setSelected(null);
       setDetail(null);
@@ -1138,8 +1145,8 @@ export function ChangeStaffPin({
       setPin("");
       setConfirmation("");
       setSuccess("PIN 碼已更新；下次登入請使用新的 4 位數 PIN 碼。");
-    } catch {
-      setError("PIN 碼更新失敗，請確認網路連線後再試。");
+    } catch (updateError) {
+      setError(staffPinUpdateError(updateError));
     } finally {
       setBusy(false);
     }
