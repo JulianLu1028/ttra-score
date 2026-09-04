@@ -8,7 +8,7 @@
 2. 新專案依序在 SQL Editor 執行 supabase/migrations/001_competition.sql、002_heats_and_privacy.sql、003_academic.sql、004_participant_numbering.sql、005_heat_numbering.sql、006_rank_by_heat.sql，各一次；不要重跑已套用的 migration。002 會移除既有學校欄及稽核中的學校資料，並將既有參賽者暫設第 1 梯；004 建立舊編號限制，005 將舊編號依既有組別與梯次轉為幼A001／動A001／程A001／機A001格式，再要求編號中的組別與梯次必須符合資料欄位；006 改為各梯次單獨計算名次。新匯入的 CSV 只填參賽編號與姓名。
 3. API Exposed schemas 保持 public，不要暴露 private。
 4. Auth 設定關閉公開註冊與匿名登入。不能只隱藏前端註冊按鈕；後端也必須禁止註冊。
-5. Auth / Users 由專案擁有者手動新增固定技術身份 `staff@ttra-score.invalid`，設為已確認。工作人員在網站只輸入 4 位數 PIN；Supabase 內的技術密碼設定為 `Ttra!` 加上該 PIN，例如 PIN `1234` 對應 `Ttra!1234`。這不是個人信箱，不寄邀請信，也不需要裁判填 Email；此登入流程不使用 SMTP。資料庫管理密碼和工作人員 PIN 必須不同，且 PIN 只適合防止家長誤入。
+5. Auth / Users 由專案擁有者手動新增固定技術身份 `staff@ttra-score.invalid`，設為已確認，並先設定符合 Supabase 規則的初始密碼。這不是個人信箱，不寄邀請信，也不需要裁判填 Email；此登入流程不使用 SMTP。管理員第一次以初始密碼進入挑戰賽工作台後，使用「變更 PIN」設定兩端共用的 4 位數 PIN。資料庫管理密碼和工作人員 PIN 必須不同，且 PIN 只適合防止家長誤入。
 6. 前端只收共用密碼，Supabase Auth 驗證固定技術身份。身份名稱是公開識別字，不是秘密；密碼、資料庫密碼、service-role key 都不可放入 GitHub、前端環境變數或對話。
 7. 由 SQL Editor 為已建立的 Auth user 加入角色，替換 UUID：
 

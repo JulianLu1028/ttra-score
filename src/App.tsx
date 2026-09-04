@@ -107,7 +107,8 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(!isDemoMode);
   const [tab, setTab] = useState("score"),
     [selected, setSelected] = useState<Team | null>(null),
-    [detail, setDetail] = useState<Team | null>(null);
+    [detail, setDetail] = useState<Team | null>(null),
+    [pinOpen, setPinOpen] = useState(false);
   const [audit, setAudit] = useState<Audit[]>(() =>
       isDemoMode ? (readDemoChallenge().audit ?? []) : [],
     ),
@@ -558,6 +559,15 @@ export default function App() {
                       <History />
                       修改紀錄
                     </Button>
+                    {!isDemoMode && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setPinOpen(true)}
+                      >
+                        <ShieldCheck />
+                        變更 PIN
+                      </Button>
+                    )}
                   </>
                 )}
                 {!isDemoMode && (
@@ -573,6 +583,9 @@ export default function App() {
                   </Button>
                 )}
               </div>
+            )}
+            {route === "staff" && staff?.role === "admin" && !isDemoMode && (
+              <ChangeStaffPin open={pinOpen} onOpenChange={setPinOpen} />
             )}
             {route === "staff" &&
             tab === "import" &&
@@ -1088,5 +1101,105 @@ export function Login() {
         </p>
       )}
     </>
+  );
+}
+
+export function ChangeStaffPin({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [pin, setPin] = useState(""),
+    [confirmation, setConfirmation] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [success, setSuccess] = useState("");
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    if (!/^\d{4}$/.test(pin)) {
+      setError("PIN 碼必須是 4 位數字。");
+      return;
+    }
+    if (pin !== confirmation) {
+      setError("兩次輸入的 PIN 碼不一致。");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (!supabase) throw new Error("正式連線尚未設定");
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: staffAuthPassword(pin),
+      });
+      if (updateError) throw updateError;
+      setPin("");
+      setConfirmation("");
+      setSuccess("PIN 碼已更新；下次登入請使用新的 4 位數 PIN 碼。");
+    } catch {
+      setError("PIN 碼更新失敗，請確認網路連線後再試。");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!busy) onOpenChange(next);
+      }}
+    >
+      <DialogContent>
+        <DialogTitle>變更工作人員 PIN</DialogTitle>
+        <DialogDescription>
+          設定後，檢定與挑戰賽工作台都使用同一組 PIN。請勿分享至家長群組。
+        </DialogDescription>
+        <form onSubmit={submit}>
+          <label className="field">
+            <span>新的 4 位數 PIN</span>
+            <Input
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              pattern="[0-9]{4}"
+              maxLength={4}
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              required
+              disabled={busy}
+            />
+          </label>
+          <label className="field">
+            <span>再次輸入 PIN</span>
+            <Input
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              pattern="[0-9]{4}"
+              maxLength={4}
+              value={confirmation}
+              onChange={(e) => setConfirmation(e.target.value)}
+              required
+              disabled={busy}
+            />
+          </label>
+          <Button type="submit" className="primary-action" disabled={busy}>
+            {busy ? "更新中…" : "更新 PIN"}
+          </Button>
+        </form>
+        {error && (
+          <p role="alert" className="error-message">
+            {error}
+          </p>
+        )}
+        {success && (
+          <p role="status" className="success-message">
+            {success}
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
