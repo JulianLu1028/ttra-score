@@ -6,6 +6,7 @@ import {
   validateScore,
   normalizeScore,
   categoryStats,
+  categories,
   heatNumbers,
   compareParticipantNumbers,
   type Team,
