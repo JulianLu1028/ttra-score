@@ -17,13 +17,13 @@ async function asUser(id: string | null, role = "authenticated") {
   await db.exec("set role " + role);
 }
 const prefixes: Record<string, string> = {
-  preschool: "A",
-  power: "B",
-  program: "C",
-  creative: "D",
+  preschool: "幼",
+  power: "動",
+  program: "程",
+  creative: "機",
 };
 async function createTeam(category = "power", number?: string) {
-  number ??= prefixes[category] + "001";
+  number ??= prefixes[category] + "A001";
   await asUser(admin);
   await db.query("select public.import_teams($1)", [
     JSON.stringify([
@@ -88,6 +88,7 @@ beforeAll(async () => {
     "002_heats_and_privacy.sql",
     "003_academic.sql",
     "004_participant_numbering.sql",
+    "005_heat_numbering.sql",
   ])
     await db.exec(
       readFileSync(
@@ -292,7 +293,7 @@ describe("學科私有登分與公開快照資料庫", () => {
         db.query("select public.import_teams($1)", [
           JSON.stringify([
             {
-              team_number: "D001",
+              team_number: "機A001",
               name: "陳宥安",
               category_id: "creative",
               heat,
@@ -303,7 +304,7 @@ describe("學科私有登分與公開快照資料庫", () => {
     await db.query("select public.import_teams($1)", [
       JSON.stringify([
         {
-          team_number: "C001",
+          team_number: "程C001",
           name: "陳宥安",
           category_id: "program",
           heat: 3,
@@ -318,7 +319,7 @@ describe("學科私有登分與公開快照資料庫", () => {
       db.query("select public.import_teams($1)", [
         JSON.stringify([
           {
-            team_number: "C002",
+            team_number: "程A002",
             name: "陳宥安",
             category_id: "program",
             heat: 1,
@@ -331,7 +332,7 @@ describe("學科私有登分與公開快照資料庫", () => {
       db.query("select public.import_teams($1)", [
         JSON.stringify([
           {
-            team_number: "D003",
+            team_number: "機A003",
             name: "前綴錯誤",
             category_id: "program",
             heat: 1,
@@ -339,6 +340,18 @@ describe("學科私有登分與公開快照資料庫", () => {
         ]),
       ]),
     ).rejects.toThrow("teams_number_category");
+    await expect(
+      db.query("select public.import_teams($1)", [
+        JSON.stringify([
+          {
+            team_number: "機B004",
+            name: "梯次錯誤",
+            category_id: "creative",
+            heat: 1,
+          },
+        ]),
+      ]),
+    ).rejects.toThrow("teams_number_heat");
   });
   it("科創 40 秒有效，40.01 秒拒絕；動力仍是 30 秒", async () => {
     const id = await createTeam("creative");
@@ -349,7 +362,7 @@ describe("學科私有登分與公開快照資料庫", () => {
     await expect(
       submit(input(id, "creative", "right", { ...data, seconds: 40.01 })),
     ).rejects.toThrow("有效範圍");
-    const power = await createTeam("power", "B002");
+    const power = await createTeam("power", "動A002");
     await expect(
       submit(input(power, "power", "pull-1", { bottles: 7, seconds: 40 })),
     ).rejects.toThrow("有效範圍");
@@ -582,9 +595,14 @@ describe("Supabase/Postgres 整合與權限", () => {
     await expect(
       db.query("select public.import_teams($1)", [
         JSON.stringify([
-          { team_number: "B002", name: "New", category_id: "power", heat: 1 },
           {
-            team_number: "B001",
+            team_number: "動A002",
+            name: "New",
+            category_id: "power",
+            heat: 1,
+          },
+          {
+            team_number: "動A001",
             name: "Overwrite",
             category_id: "power",
             heat: 2,
@@ -600,6 +618,7 @@ describe("Supabase/Postgres 整合與權限", () => {
     const rows = Array.from({ length: 120 }, (_, i) => ({
       team_number:
         prefixes[categories[i % 4]] +
+        "A" +
         String(Math.floor(i / 4) + 1).padStart(3, "0"),
       name: demoTeams[i % demoTeams.length].name,
       category_id: categories[i % 4],

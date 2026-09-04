@@ -25,7 +25,9 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).toContain("全部梯次");
     expect(html).toContain('aria-label="第 1 梯名單"');
     expect(html).toContain('aria-label="第 2 梯名單"');
-    expect(html).toContain("名次為全組總排名");
+    expect(html).not.toContain("名次");
+    expect(html).toContain("名單依參賽編號排列");
+    expect(html).toContain("#機A001");
     expect(html).not.toContain("學校");
     expect(html).not.toContain("academic-theme");
     expect(html).not.toMatch(/隊伍|隊名|TEAM CHECK-IN/);
@@ -56,6 +58,8 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toContain("目前匯入組別");
     expect(html).toContain("寶礦力水得足球世界盃");
     expect(html).toContain("下載範本");
+    expect(html).toContain("不必填組別或梯次");
+    expect(html).toContain("幼／動／程／機");
     expect(html).toContain("姓名與成績會公開");
     expect(html).not.toMatch(/隊伍|隊名/);
   });

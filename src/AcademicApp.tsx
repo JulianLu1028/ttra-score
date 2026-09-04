@@ -475,7 +475,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                     onClick={() =>
                       downloadCSV("TTRA-學科名單範本.csv", [
                         ["參賽編號", "姓名"],
-                        ["E101", "陳宥安"],
+                        ["E101", "王小明"],
                       ])
                     }
                   >

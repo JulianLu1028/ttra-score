@@ -754,9 +754,11 @@ export default function App() {
                     </div>
                     <p className="rules-note">{rules[group]}</p>
                     <p className="rules-note">
-                      {group === "preschool"
-                        ? "依梯次分區，本組不排名。"
-                        : "依梯次分區；顯示的名次是同組所有梯次合併計算的總排名。"}
+                      {route === "public"
+                        ? "依梯次分區，名單依參賽編號排列。"
+                        : group === "preschool"
+                          ? "依梯次分區，本組不排名。"
+                          : "依梯次分區；顯示的名次是同組所有梯次合併計算的總排名。"}
                     </p>
                     {loading ? (
                       <div className="empty-state">正在取得成績…</div>
@@ -796,7 +798,8 @@ export default function App() {
                                       .length
                                   }{" "}
                                   人
-                                  {group !== "preschool" &&
+                                  {route === "staff" &&
+                                    group !== "preschool" &&
                                     " · 名次為全組總排名"}
                                 </span>
                               </div>
@@ -809,13 +812,15 @@ export default function App() {
                                 .filter((r) => r.team.heat === heat)
                                 .map((r) => (
                                   <div className="score-row" key={r.team.id}>
-                                    <strong className="rank">
-                                      {group === "preschool"
-                                        ? "—"
-                                        : r.rank
-                                          ? String(r.rank).padStart(2, "0")
-                                          : "—"}
-                                    </strong>
+                                    {route === "staff" && (
+                                      <strong className="rank">
+                                        {group === "preschool"
+                                          ? "—"
+                                          : r.rank
+                                            ? String(r.rank).padStart(2, "0")
+                                            : "—"}
+                                      </strong>
+                                    )}
                                     <button
                                       className="team-cell"
                                       onClick={() => setDetail(r.team)}
@@ -976,7 +981,9 @@ export default function App() {
           <span>
             {isDemoMode
               ? "示範內容，非正式成績"
-              : "暫定排名 · 官方成績以大會最終裁定為準"}
+              : route === "staff"
+                ? "暫定排名 · 官方成績以大會最終裁定為準"
+                : "即時成績 · 官方成績以大會最終裁定為準"}
           </span>
         </footer>
       </main>

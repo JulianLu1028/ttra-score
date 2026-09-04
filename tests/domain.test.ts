@@ -12,7 +12,13 @@ import {
   type Attempt,
   type CategoryId,
 } from "../src/domain";
-import { parseTeams, toCSV, parseCSV } from "../src/csv";
+import {
+  normalizeParticipantNumber,
+  parseCSV,
+  parseTeams,
+  participantNumber,
+  toCSV,
+} from "../src/csv";
 import { demoTeams, demoAttempts } from "../src/demo";
 const team = (categoryId: CategoryId, id = "1"): Team => ({
   id,
@@ -40,10 +46,10 @@ const attempt = (
 });
 describe("四組規則", () => {
   it("選手顯示順序依參賽編號，不受名次影響", () => {
-    const entrants = [team("creative", "D010"), team("creative", "D002")];
+    const entrants = [team("creative", "機A010"), team("creative", "機A002")];
     expect(
       [...entrants].sort(compareParticipantNumbers).map((row) => row.number),
-    ).toEqual(["D002", "D010"]);
+    ).toEqual(["機A002", "機A010"]);
   });
   it("幼兒取最佳回合且不排名", () => {
     const ts = [team("preschool")],
@@ -183,53 +189,65 @@ describe("四組規則", () => {
     expect(leaderboard([team("creative")], [], "creative")[0].rank).toBeNull());
 });
 describe("CSV", () => {
-  it("支援 BOM、引號、逗號、換行和前置零", () => {
+  it("支援 BOM、引號、逗號、換行、前置零及全形英數正規化", () => {
     const rows = parseTeams(
-      '\uFEFF參賽編號,姓名,梯次\r\nA001,"Chen, An",1',
+      '\uFEFF參賽編號,姓名\r\n幼Ａ００１,"Chen, An"',
       "preschool",
     );
     expect(rows[0]).toMatchObject({
-      number: "A001",
+      number: "幼A001",
       name: "Chen, An",
       heat: 1,
       categoryId: "preschool",
     });
+    expect(normalizeParticipantNumber(" 程ｃ０１２ ")).toBe("程C012");
   });
-  it("同名參賽者以不同編號區分", () => {
+  it("編號自動帶入梯次，同名參賽者仍以不同編號區分", () => {
     const rows = parseTeams(
-      "參賽編號,姓名,梯次\nB001,陳宥安,1\nB002,陳宥安,2",
+      "參賽編號,姓名\n動A001,王小明\n動B001,王小明",
       "power",
     );
-    expect(rows.map((r) => r.number)).toEqual(["B001", "B002"]);
+    expect(rows.map((r) => [r.number, r.heat])).toEqual([
+      ["動A001", 1],
+      ["動B001", 2],
+    ]);
     expect(rows.every((r) => !("organization" in r))).toBe(true);
   });
-  it("拒絕含學校及缺少梯次的舊版 CSV", () => {
+  it("拒絕含學校、組別或梯次的額外欄位", () => {
     expect(() =>
       parseTeams(
         "參賽編號,姓名,學校／單位,組別\n001,陳宥安,學校,power",
         "power",
       ),
     ).toThrow("目前項目的範本");
-    expect(() => parseTeams("參賽編號,姓名\nB001,陳宥安", "power")).toThrow(
-      "梯次",
-    );
+    expect(() =>
+      parseTeams("參賽編號,姓名,梯次\n動A001,王小明,1", "power"),
+    ).toThrow("兩個欄位");
   });
   it("拒絕重複編號", () =>
     expect(() =>
-      parseTeams("team_number,name,heat\nB001,A,1\nB001,B,2", "power"),
+      parseTeams("team_number,name\n動A001,A\n動Ａ００１,B", "power"),
     ).toThrow("重複"));
   it("依編號前綴阻擋選錯組別", () => {
-    expect(() =>
-      parseTeams("參賽編號,姓名,梯次\nD001,陳宥安,1", "power"),
-    ).toThrow("科創機器人組");
-    expect(() =>
-      parseTeams("參賽編號,姓名,梯次\nB1,陳宥安,1", "power"),
-    ).toThrow("A001、B001、C001、D001");
+    expect(() => parseTeams("參賽編號,姓名\n機A001,王小明", "power")).toThrow(
+      "科創機器人組",
+    );
+    expect(() => parseTeams("參賽編號,姓名\n動A1,王小明", "power")).toThrow(
+      "幼A001、動A001、程A001、機A001",
+    );
   });
-  it("拒絕仍包含組別欄的舊範本", () =>
+  it("拒絕仍包含組別與梯次欄的範本", () =>
     expect(() =>
-      parseTeams("參賽編號,姓名,組別,梯次\nB001,陳宥安,動力機械組,1", "power"),
-    ).toThrow("三個欄位"));
+      parseTeams(
+        "參賽編號,姓名,組別,梯次\n動A001,王小明,動力機械組,1",
+        "power",
+      ),
+    ).toThrow("兩個欄位"));
+  it("產生含組別、梯次與三位流水號的參賽編號", () => {
+    expect(participantNumber("preschool", 2, 1)).toBe("幼B001");
+    expect(participantNumber("program", 3, 27)).toBe("程C027");
+    expect(() => participantNumber("creative", 3, 1)).toThrow("範圍");
+  });
   it("匯出防止試算表公式注入", () =>
     expect(parseCSV(toCSV([["=1+1", "@evil", "正常"]]))[0]).toEqual([
       "'=1+1",
@@ -279,13 +297,12 @@ describe("梯次與組別統計", () => {
   it("程式三梯、其餘兩梯，匯入拒絕超出梯次", () => {
     expect(heatNumbers("program")).toEqual([1, 2, 3]);
     expect(heatNumbers("creative")).toEqual([1, 2]);
-    expect(
-      parseTeams("參賽編號,姓名,梯次\nC001,陳宥安,3", "program")[0].heat,
-    ).toBe(3);
-    for (const heat of [0, 3, 1.5])
-      expect(() =>
-        parseTeams(`參賽編號,姓名,梯次\nD001,陳宥安,${heat}`, "creative"),
-      ).toThrow("梯次");
+    expect(parseTeams("參賽編號,姓名\n程C001,王小明", "program")[0].heat).toBe(
+      3,
+    );
+    expect(() =>
+      parseTeams("參賽編號,姓名\n機C001,王小明", "creative"),
+    ).toThrow("只有 A–B 梯");
   });
   it("科創 40.0 秒保留得分，超過 40 秒拒絕", () => {
     const data = { regular: 5, red: "none", blue: "none", seconds: 40 };

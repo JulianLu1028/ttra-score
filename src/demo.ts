@@ -30,14 +30,22 @@ export const demoTeams: Team[] = (
   ["preschool", "power", "program", "creative"] as CategoryId[]
 ).flatMap((categoryId, c) =>
   (categoryId === "preschool" ? [] : names.slice(c * 6, (c + 1) * 6)).map(
-    (name, i) => ({
-      id: categoryId + "-" + (i + 1),
-      number: "ABCD"[c] + String(i + 1).padStart(3, "0"),
-      name,
-      heat: (i % (categoryId === "program" ? 3 : 2)) + 1,
-      categoryId,
-      checkinStatus: i < 5 ? "checked_in" : "pending",
-    }),
+    (name, i) => {
+      const heat = (i % (categoryId === "program" ? 3 : 2)) + 1;
+      return {
+        id: categoryId + "-" + (i + 1),
+        number:
+          ["幼", "動", "程", "機"][c] +
+          String.fromCharCode(64 + heat) +
+          String(
+            Math.floor(i / (categoryId === "program" ? 3 : 2)) + 1,
+          ).padStart(3, "0"),
+        name,
+        heat,
+        categoryId,
+        checkinStatus: i < 5 ? "checked_in" : "pending",
+      };
+    },
   ),
 );
 const now = new Date().toISOString();
