@@ -1,5 +1,6 @@
 import { parseCSV } from "./csv";
 import { isDemoMode, supabase } from "./supabase";
+import { academicRequest } from "./academic-request";
 
 export type AcademicRosterRow = { number: string; name: string };
 export type AcademicCandidate = AcademicRosterRow & {
@@ -208,7 +209,9 @@ const demoAcademic = new AcademicDemoStore(
 );
 export async function getAcademicWorkspace(): Promise<AcademicWorkspace> {
   if (isDemoMode) return demoAcademic.readWorkspace();
-  const { data, error } = await supabase!.rpc("get_academic_workspace");
+  const { data, error } = await academicRequest((signal) =>
+    supabase!.rpc("get_academic_workspace").abortSignal(signal),
+  );
   if (error) throw error;
   return data;
 }
@@ -220,7 +223,9 @@ export async function getAcademicPublic(): Promise<AcademicPublic> {
 }
 export async function importAcademic(rows: AcademicRosterRow[]) {
   if (isDemoMode) return demoAcademic.import(rows);
-  const { error } = await supabase!.rpc("import_academic", { p_rows: rows });
+  const { error } = await academicRequest((signal) =>
+    supabase!.rpc("import_academic", { p_rows: rows }).abortSignal(signal),
+  );
   if (error) throw error;
 }
 export async function saveAcademic(input: AcademicSave) {

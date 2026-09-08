@@ -22,6 +22,7 @@ import { isDemoMode, supabase } from "./supabase";
 import { getStaff, subscribe, type Staff } from "./data";
 import { Login } from "./App";
 import { downloadCSV } from "./csv";
+import { academicImportError } from "./academic-request";
 import {
   academicScore,
   getAcademicWorkspace,
@@ -48,6 +49,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
   const [workspace, setWorkspace] = useState<AcademicWorkspace | null>(null);
   const [publicData, setPublicData] = useState<AcademicPublic | null>(null);
   const [error, setError] = useState("");
+  const [refreshError, setRefreshError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -56,6 +58,11 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
   const [scoreText, setScoreText] = useState("");
   const [reason, setReason] = useState("");
   const [importRows, setImportRows] = useState<AcademicRosterRow[]>([]);
+  const [importFeedback, setImportFeedback] = useState<{
+    state: "pending" | "success" | "error";
+    message: string;
+  } | null>(null);
+  const importPending = useRef(false);
   const [publishConfirmation, setPublishConfirmation] = useState<{
     version: number;
     count: number;
@@ -150,7 +157,9 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
     setSelected(null);
     setPublishConfirmation(null);
     setImportRows([]);
+    setImportFeedback(null);
     setError("");
+    setRefreshError("");
     setNotice("");
     const refresh = async () => {
       if (pending) return;
@@ -164,9 +173,9 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
           const value = await getAcademicPublic();
           if (live) setPublicData(value);
         }
-        if (live) setError("");
+        if (live) setRefreshError("");
       } catch (e) {
-        if (live) setError("更新失敗：" + (e as Error).message);
+        if (live) setRefreshError("更新失敗：" + (e as Error).message);
       } finally {
         pending = false;
         if (live) setLoading(false);
@@ -205,6 +214,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
   }
   async function readFile(file?: File) {
     setImportRows([]);
+    setImportFeedback(null);
     setError("");
     if (!file) return;
     try {
@@ -215,6 +225,35 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
       setImportRows(rows);
     } catch (e) {
       setError((e as Error).message);
+      setImportFeedback({ state: "error", message: (e as Error).message });
+    }
+  }
+  async function confirmImport() {
+    if (importPending.current || busy || !online || !importRows.length) return;
+    importPending.current = true;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    const count = importRows.length;
+    setImportFeedback({
+      state: "pending",
+      message: `正在匯入 ${count} 人，請稍候…`,
+    });
+    try {
+      await importAcademic(importRows);
+      setImportRows([]);
+      const message = `已成功匯入 ${count} 人，尚未公布。`;
+      setImportFeedback({ state: "success", message });
+      setNotice(message);
+      // A slow list refresh must not hide a successful import receipt.
+      void refreshRef.current();
+    } catch (e) {
+      const message = academicImportError(e);
+      setImportFeedback({ state: "error", message });
+      setError(message);
+    } finally {
+      importPending.current = false;
+      setBusy(false);
     }
   }
   async function save() {
@@ -305,6 +344,11 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
         {error && (
           <p role="alert" className="error-message">
             {error}
+          </p>
+        )}
+        {refreshError && (
+          <p role="alert" className="error-message">
+            {refreshError}
           </p>
         )}
         {notice && (
@@ -517,18 +561,38 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                         </TableBody>
                       </Table>
                       <Button
+                        type="button"
                         disabled={busy || !online}
-                        onClick={() =>
-                          void run(async () => {
-                            await importAcademic(importRows);
-                            setImportRows([]);
-                          }, "學科名單已匯入，尚未公布。")
-                        }
+                        aria-busy={importFeedback?.state === "pending"}
+                        onClick={() => void confirmImport()}
                       >
                         <Upload />
-                        確認匯入 {importRows.length} 人
+                        {importFeedback?.state === "pending"
+                          ? `正在匯入 ${importRows.length} 人…`
+                          : `確認匯入 ${importRows.length} 人`}
                       </Button>
                     </>
+                  )}
+                  {importFeedback && (
+                    <p
+                      role={
+                        importFeedback.state === "error" ? "alert" : "status"
+                      }
+                      className={
+                        importFeedback.state === "error"
+                          ? "error-message"
+                          : importFeedback.state === "success"
+                            ? "success-message"
+                            : "notice"
+                      }
+                    >
+                      {importFeedback.message}
+                    </p>
+                  )}
+                  {!online && (
+                    <p className="error-message">
+                      目前沒有網路連線，連線恢復後才能匯入。
+                    </p>
                   )}
                 </div>
               </section>
