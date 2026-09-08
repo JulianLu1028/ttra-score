@@ -5,7 +5,7 @@ import App, { Login } from "../src/App";
 import { ScoreForm } from "../src/ScoreForm";
 import { ImportPanel } from "../src/ImportPanel";
 import { categories, type Team } from "../src/domain";
-import AcademicApp from "../src/AcademicApp";
+import AcademicApp, { AcademicLevelTabs } from "../src/AcademicApp";
 import { CategoryTabs } from "../src/CategoryTabs";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -150,6 +150,8 @@ it("學科家長入口不渲染內部登分功能", () => {
   vi.stubGlobal("navigator", { onLine: true });
   const html = renderToString(<AcademicApp staffView={false} />);
   expect(html).toContain("檢定學科成績");
+  expect(html).toContain("一級檢定");
+  expect(html).toContain("二級檢定");
   expect(html).toContain('class="academic-theme academic-shell"');
   expect(html).not.toContain("公布全部學科成績");
   expect(html).not.toContain("目前分數（內部）");
@@ -170,4 +172,17 @@ it("學科裁判入口與家長入口使用相同的獨立配色", () => {
   const html = renderToString(<AcademicApp staffView={true} />);
   expect(html).toContain('class="academic-theme academic-shell"');
   expect(html).toContain("學科成績工作台");
+  expect(html).toContain("公布全部等級已登錄的成績");
+  expect(html).toContain("機581115100401");
+  expect(html).not.toContain("E101");
+});
+it("檢定等級切換按鈕標示選取狀態且可保留未辨識舊名單", () => {
+  const html = renderToString(
+    <AcademicLevelTabs value={2} onChange={() => {}} includeUnassigned />,
+  );
+  expect(html).toContain('aria-label="檢定等級"');
+  expect(html).toContain('aria-pressed="true"');
+  expect(html).toContain("一級檢定");
+  expect(html).toContain("二級檢定");
+  expect(html).toContain("待確認等級");
 });

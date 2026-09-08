@@ -1,10 +1,85 @@
 import { describe, expect, it } from "vitest";
 import {
+  academicLevel,
+  academicLevelRows,
+  academicRosterTemplate,
+} from "../src/academic-levels";
+import {
   AcademicDemoStore,
   academicScore,
   parseAcademicCSV,
 } from "../src/academic";
 describe("學科登分與手動公布", () => {
+  it("兩級編號完整辨識：一級 36 位、二級 11 位，邊界之外不誤判", () => {
+    const first = Array.from({ length: 36 }, (_, i) => ({
+      number: `機5811151004${String(i + 1).padStart(2, "0")}`,
+    }));
+    const second = Array.from({ length: 11 }, (_, i) => ({
+      number: `機5821151004${String(i + 1).padStart(2, "0")}`,
+    }));
+    expect(first.every((r) => academicLevel(r.number) === 1)).toBe(true);
+    expect(second.every((r) => academicLevel(r.number) === 2)).toBe(true);
+    const mixed = [...second, ...first].reverse();
+    expect(academicLevelRows(mixed, 1)).toEqual(first);
+    expect(academicLevelRows(mixed, 2)).toEqual(second);
+    for (const number of [
+      "機581115100400",
+      "機581115100437",
+      "機582115100400",
+      "機582115100412",
+      "機583115100401",
+      "機5811151004010",
+      "581115100401",
+      "機58111510041",
+      "機5811151004A1",
+      "E001",
+    ])
+      expect(academicLevel(number)).toBeNull();
+  });
+  it("等級範本不新增欄位；選錯等級、越界編號與全形重複均被匯入預覽拒絕", () => {
+    expect(academicRosterTemplate(1)).toEqual([
+      ["參賽編號", "姓名"],
+      ["機581115100401", "王小明"],
+    ]);
+    expect(academicRosterTemplate(2)[1]).toEqual(["機582115100401", "王小明"]);
+    expect(
+      parseAcademicCSV("參賽編號,姓名\n機５８１１１５１００４０１,王小明", 1)[0]
+        .number,
+    ).toBe("機581115100401");
+    expect(() =>
+      parseAcademicCSV("參賽編號,姓名\n機582115100401,王小明", 1),
+    ).toThrow("不屬於一級檢定");
+    expect(() =>
+      parseAcademicCSV("參賽編號,姓名\n機582115100412,王小明", 2),
+    ).toThrow("不屬於二級檢定");
+    expect(() =>
+      parseAcademicCSV(
+        "參賽編號,姓名\n機581115100401,王小明\n機５８１１１５１００４０１,王小明",
+        1,
+      ),
+    ).toThrow("重複");
+  });
+  it("既有未知編號保留，不猜測等級或修改原資料；分組不改公布範圍", () => {
+    const legacy = { number: "E001", name: "王小明" };
+    expect(academicLevelRows([legacy], "unassigned")).toEqual([legacy]);
+    const store = new AcademicDemoStore([
+      { number: "機581115100401", name: "王小明" },
+      { number: "機582115100401", name: "王小明" },
+    ]);
+    for (const candidate of store.readWorkspace().candidates)
+      store.save({
+        id: candidate.id,
+        score: 80,
+        expected_revision: 0,
+        reason: "",
+        request_id: candidate.id,
+      });
+    expect(academicLevelRows(store.readWorkspace().candidates, 1)).toHaveLength(
+      1,
+    );
+    store.publish(store.readWorkspace().version, "both-levels");
+    expect(store.readPublic().results).toHaveLength(2);
+  });
   it("0 與未登錄不同，公布前不能從公開快照取得分數", () => {
     const store = new AcademicDemoStore([
       { number: "001", name: "陳宥安" },

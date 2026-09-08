@@ -1,6 +1,13 @@
 import { parseCSV } from "./csv";
 import { isDemoMode, supabase } from "./supabase";
 import { academicRequest } from "./academic-request";
+import {
+  academicLevel,
+  academicLevels,
+  academicLevelName,
+  normalizeAcademicNumber,
+  type AcademicLevel,
+} from "./academic-levels";
 
 export type AcademicRosterRow = { number: string; name: string };
 export type AcademicCandidate = AcademicRosterRow & {
@@ -43,7 +50,10 @@ export type AcademicSave = {
   expected_revision: number;
   request_id: string;
 };
-export function parseAcademicCSV(text: string): AcademicRosterRow[] {
+export function parseAcademicCSV(
+  text: string,
+  expectedLevel?: AcademicLevel,
+): AcademicRosterRow[] {
   const [headers, ...rows] = parseCSV(text);
   if (!headers || rows.length < 1 || rows.length > 500)
     throw new Error("每次請匯入 1–500 位參賽者");
@@ -53,7 +63,7 @@ export function parseAcademicCSV(text: string): AcademicRosterRow[] {
     throw new Error("學科名單只接受「參賽編號、姓名」兩欄，請下載範本後填寫");
   const seen = new Set<string>();
   return rows.map((row, index) => {
-    const number = row[ni],
+    const number = normalizeAcademicNumber(row[ni] ?? ""),
       name = row[na];
     if (
       row.length !== 2 ||
@@ -63,6 +73,12 @@ export function parseAcademicCSV(text: string): AcademicRosterRow[] {
       name.length > 100
     )
       throw new Error(`第 ${index + 2} 列：請檢查參賽編號及姓名`);
+    if (expectedLevel && academicLevel(number) !== expectedLevel) {
+      const range = academicLevels.find((item) => item.id === expectedLevel)!;
+      throw new Error(
+        `第 ${index + 2} 列：${number} 不屬於${academicLevelName(expectedLevel)}，請使用 ${range.first}～${range.last}`,
+      );
+    }
     if (seen.has(number)) throw new Error("重複參賽編號：" + number);
     seen.add(number);
     return { number, name };

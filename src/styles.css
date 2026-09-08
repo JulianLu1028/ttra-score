@@ -999,6 +999,19 @@ footer {
 }
 
 /* Field-side controls stay legible on a phone. */
+.academic-level-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px;
+}
+.academic-level-tabs button {
+  min-height: 44px;
+  font-size: 1rem;
+}
+.academic-theme .hint {
+  overflow-wrap: anywhere;
+}
 .score-row .team-cell .participant-number {
   font-size: 1.125rem;
   font-weight: 800;

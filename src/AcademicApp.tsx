@@ -24,6 +24,16 @@ import { Login } from "./App";
 import { downloadCSV } from "./csv";
 import { academicImportError } from "./academic-request";
 import {
+  academicLevel,
+  academicLevels,
+  academicLevelName,
+  academicLevelRows,
+  academicRosterTemplate,
+  normalizeAcademicNumber,
+  type AcademicLevel,
+  type AcademicLevelFilter,
+} from "./academic-levels";
+import {
   academicScore,
   getAcademicWorkspace,
   getAcademicPublic,
@@ -54,6 +64,8 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
+  const [level, setLevel] = useState<AcademicLevelFilter>(1);
+  const [importLevel, setImportLevel] = useState<AcademicLevel>(1);
   const [selected, setSelected] = useState<AcademicCandidate | null>(null);
   const [scoreText, setScoreText] = useState("");
   const [reason, setReason] = useState("");
@@ -63,6 +75,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
     message: string;
   } | null>(null);
   const importPending = useRef(false);
+  const importReadVersion = useRef(0);
   const [publishConfirmation, setPublishConfirmation] = useState<{
     version: number;
     count: number;
@@ -158,6 +171,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
     setPublishConfirmation(null);
     setImportRows([]);
     setImportFeedback(null);
+    importReadVersion.current += 1;
     setError("");
     setRefreshError("");
     setNotice("");
@@ -191,11 +205,22 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
     return () => {
       live = false;
       clearInterval(timer);
+      importReadVersion.current += 1;
       stop();
     };
   }, [staffView, canGrade, session?.user.id]);
   const candidates = workspace?.candidates ?? [];
   const graded = candidates.filter((c) => c.score !== null).length;
+  const levelCandidates = academicLevelRows(candidates, level);
+  const levelResults = academicLevelRows(publicData?.results ?? [], level);
+  const levelGraded = levelCandidates.filter((c) => c.score !== null).length;
+  const unknownCount = candidates.filter(
+    (c) => academicLevel(c.number) === null,
+  ).length;
+  function changeLevel(value: AcademicLevelFilter) {
+    setLevel(value);
+    setQuery("");
+  }
   const matches = (c: AcademicRosterRow) =>
     (c.number + " " + c.name).toLowerCase().includes(query.toLowerCase());
   async function run(action: () => Promise<unknown>, message: string) {
@@ -213,17 +238,27 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
     }
   }
   async function readFile(file?: File) {
+    const readVersion = ++importReadVersion.current;
     setImportRows([]);
     setImportFeedback(null);
     setError("");
     if (!file) return;
     try {
       if (file.size > 1000000) throw new Error("檔案上限 1 MB");
-      const rows = parseAcademicCSV(await file.text());
-      if (rows.some((r) => candidates.some((c) => c.number === r.number)))
+      const text = await file.text();
+      if (readVersion !== importReadVersion.current) return;
+      const rows = parseAcademicCSV(text, importLevel);
+      if (
+        rows.some((r) =>
+          candidates.some(
+            (c) => normalizeAcademicNumber(c.number) === r.number,
+          ),
+        )
+      )
         throw new Error("名單含已存在的參賽編號；匯入不會覆蓋原名單");
       setImportRows(rows);
     } catch (e) {
+      if (readVersion !== importReadVersion.current) return;
       setError((e as Error).message);
       setImportFeedback({ state: "error", message: (e as Error).message });
     }
@@ -242,6 +277,8 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
     try {
       await importAcademic(importRows);
       setImportRows([]);
+      setLevel(importLevel);
+      setQuery("");
       const message = `已成功匯入 ${count} 人，尚未公布。`;
       setImportFeedback({ state: "success", message });
       setNotice(message);
@@ -382,23 +419,37 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
           </section>
         ) : staffView ? (
           <>
+            <AcademicLevelTabs
+              value={level}
+              onChange={changeLevel}
+              includeUnassigned={unknownCount > 0}
+            />
+            {unknownCount > 0 && (
+              <p className="notice">
+                有 {unknownCount}{" "}
+                位既有參賽者的編號不在指定範圍，已保留於「待確認等級」，沒有更改編號或分數。
+              </p>
+            )}
             <section className="academic-summary">
               <div>
-                <span>學科參賽者</span>
-                <strong>{candidates.length} 人</strong>
+                <span>{academicLevelName(level)}參賽者</span>
+                <strong>{levelCandidates.length} 人</strong>
               </div>
               <div>
                 <span>已登分</span>
-                <strong>{graded} 人</strong>
+                <strong>{levelGraded} 人</strong>
               </div>
               <div>
                 <span>未登分</span>
-                <strong>{candidates.length - graded} 人</strong>
+                <strong>{levelCandidates.length - levelGraded} 人</strong>
               </div>
               <div>
                 <span>已公開</span>
                 <strong>
-                  {candidates.filter((c) => c.published_score !== null).length}{" "}
+                  {
+                    levelCandidates.filter((c) => c.published_score !== null)
+                      .length
+                  }{" "}
                   人
                 </strong>
               </div>
@@ -406,6 +457,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
             <section className="panel publication-panel">
               <div>
                 <h2>手動統一公布</h2>
+                <p>公布全部等級已登錄的成績，不受目前等級或搜尋篩選影響。</p>
                 <p>
                   預計 10/04（日）10:00
                   公布，時間到不會自動發布。可等批改完成後再操作。
@@ -435,7 +487,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
             </section>
             <section className="panel">
               <div className="panel-heading">
-                <h2>學科登分名單</h2>
+                <h2>{academicLevelName(level)} · 學科登分名單</h2>
                 {!isDemoMode && (
                   <Button
                     variant="ghost"
@@ -469,7 +521,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {candidates.filter(matches).map((c) => (
+                    {levelCandidates.filter(matches).map((c) => (
                       <TableRow key={c.id}>
                         <TableCell>{c.number}</TableCell>
                         <TableCell>{c.name}</TableCell>
@@ -506,7 +558,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                   </TableBody>
                 </Table>
               )}
-              {!loading && !candidates.filter(matches).length && (
+              {!loading && !levelCandidates.filter(matches).length && (
                 <p className="empty-state">沒有符合的參賽者。</p>
               )}
             </section>
@@ -517,10 +569,10 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                   <Button
                     variant="outline"
                     onClick={() =>
-                      downloadCSV("TTRA-學科名單範本.csv", [
-                        ["參賽編號", "姓名"],
-                        ["E101", "王小明"],
-                      ])
+                      downloadCSV(
+                        `TTRA-${academicLevelName(importLevel)}-名單範本.csv`,
+                        academicRosterTemplate(importLevel),
+                      )
                     }
                   >
                     <Download />
@@ -528,6 +580,30 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                   </Button>
                 </div>
                 <div className="form-body">
+                  <AcademicLevelTabs
+                    value={importLevel}
+                    disabled={busy}
+                    onChange={(value) => {
+                      if (value === "unassigned") return;
+                      importReadVersion.current += 1;
+                      setImportLevel(value);
+                      setImportRows([]);
+                      setImportFeedback(null);
+                    }}
+                  />
+                  <p className="hint">
+                    編號範圍：
+                    {
+                      academicLevels.find((item) => item.id === importLevel)!
+                        .first
+                    }
+                    ～
+                    {
+                      academicLevels.find((item) => item.id === importLevel)!
+                        .last
+                    }
+                    。等級依編號辨識，不必增加 CSV 欄位。
+                  </p>
                   <p className="hint">
                     使用 UTF-8
                     CSV，每列一位參賽者，只保留參賽編號、姓名。與挑戰賽名單分開管理。範本姓名為虛構；姓名與分數會在確認公布後公開。
@@ -535,6 +611,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                   <label className="field">
                     <span>學科名單 CSV</span>
                     <Input
+                      key={importLevel}
                       type="file"
                       accept=".csv,text/csv"
                       disabled={busy || !online}
@@ -543,12 +620,16 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                   </label>
                   {importRows.length > 0 && (
                     <>
-                      <p>預覽 {importRows.length} 人；只新增，不覆蓋原名單。</p>
+                      <p>
+                        {academicLevelName(importLevel)} · 預覽{" "}
+                        {importRows.length} 人；只新增，不覆蓋原名單。
+                      </p>
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>參賽編號</TableHead>
                             <TableHead>姓名</TableHead>
+                            <TableHead>等級</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -556,6 +637,9 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                             <TableRow key={r.number}>
                               <TableCell>{r.number}</TableCell>
                               <TableCell>{r.name}</TableCell>
+                              <TableCell>
+                                {academicLevelName(academicLevel(r.number))}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -638,8 +722,17 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
           </>
         ) : (
           <section className="panel">
+            <AcademicLevelTabs
+              value={level}
+              onChange={changeLevel}
+              includeUnassigned={Boolean(
+                publicData?.results.some(
+                  (r) => academicLevel(r.number) === null,
+                ),
+              )}
+            />
             <div className="panel-heading">
-              <h2>學科成績公告</h2>
+              <h2>{academicLevelName(level)} · 學科成績公告</h2>
               <span>{publicData?.publishedAt ? "已公布" : "待公布"}</span>
             </div>
             {loading ? (
@@ -658,7 +751,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                 <p className="rules-note">
                   公布時間：
                   {new Date(publicData.publishedAt).toLocaleString("zh-TW")} ·
-                  共 {publicData.results.length}{" "}
+                  本等級共 {levelResults.length}{" "}
                   人。尚未列出者可能仍未完成登分。
                 </p>
                 <div className="toolbar">
@@ -678,7 +771,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {publicData.results.filter(matches).map((r) => (
+                    {levelResults.filter(matches).map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>{r.number}</TableCell>
                         <TableCell>{r.name}</TableCell>
@@ -689,7 +782,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                     ))}
                   </TableBody>
                 </Table>
-                {!publicData.results.filter(matches).length && (
+                {!levelResults.filter(matches).length && (
                   <p className="empty-state">沒有符合的已公布成績。</p>
                 )}
               </>
@@ -714,6 +807,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
             {selected?.number} · {selected?.name}
           </DialogTitle>
           <DialogDescription>
+            {selected && academicLevelName(academicLevel(selected.number))}。
             儲存只更新內部成績，不會立即公開。已有分數的更正需填寫原因。
           </DialogDescription>
           <label className="field">
@@ -760,7 +854,8 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
         <DialogContent className="academic-theme academic-dialog">
           <DialogTitle>確認一次公布全部已登錄成績？</DialogTitle>
           <DialogDescription>
-            將公開 {publishConfirmation?.count} 人的姓名與分數。尚有{" "}
+            本次包含全部等級，不受畫面篩選影響。 將公開{" "}
+            {publishConfirmation?.count} 人的姓名與分數。尚有{" "}
             {publishConfirmation?.missing} 人未登分，不會將空白當成 0
             分。家長會看到本次確認的成績。
           </DialogDescription>
@@ -793,6 +888,43 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
           </Button>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+export function AcademicLevelTabs({
+  value,
+  onChange,
+  includeUnassigned = false,
+  disabled = false,
+}: {
+  value: AcademicLevelFilter;
+  onChange: (value: AcademicLevelFilter) => void;
+  includeUnassigned?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="academic-level-tabs" role="group" aria-label="檢定等級">
+      {academicLevels.map((item) => (
+        <Button
+          key={item.id}
+          variant={value === item.id ? "default" : "outline"}
+          aria-pressed={value === item.id}
+          disabled={disabled}
+          onClick={() => onChange(item.id)}
+        >
+          {item.name}
+        </Button>
+      ))}
+      {includeUnassigned && (
+        <Button
+          variant={value === "unassigned" ? "default" : "outline"}
+          aria-pressed={value === "unassigned"}
+          disabled={disabled}
+          onClick={() => onChange("unassigned")}
+        >
+          待確認等級
+        </Button>
+      )}
     </div>
   );
 }
