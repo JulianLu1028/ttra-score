@@ -46,6 +46,12 @@ export function categoryStats(
   };
 }
 export type AttemptStatus = "valid" | "invalid" | "terminated";
+export const failureReasons: Record<CategoryId, string[]> = {
+  preschool: [],
+  power: ["超過邊界", "車體鬆脫"],
+  program: ["超過邊界", "車體鬆脫"],
+  creative: ["車體掉出場地", "零件脫落", "翻覆"],
+};
 export type Attempt = {
   id: string;
   teamId: string;
@@ -120,7 +126,7 @@ export function teamResult(
   if (team.categoryId === "preschool") {
     const best =
       rows
-        .filter((a) => a.status !== "invalid")
+        .filter((a) => a.status === "valid")
         .map((a) => n(a, "childGoals") + n(a, "parentGoals"))
         .sort((a, b) => b - a)[0] ?? null;
     return {
@@ -129,7 +135,7 @@ export function teamResult(
       secondary: null,
       qualified: best !== null && best >= 3,
       complete: rows.length >= 2,
-      summary: best === null ? "尚無成績" : "最佳回合 " + best + " 球",
+      summary: best === null ? "尚無成績" : "最佳回合進球數 " + best + " 球",
     };
   }
   if (team.categoryId === "power") {
@@ -147,22 +153,34 @@ export function teamResult(
             n(a, "seconds") - n(b, "seconds"),
         )[0];
     const pull = pick("pull"),
-      push = pick("push"),
-      complete = Boolean(pull && push);
-    const load = complete ? n(pull!, "bottles") + n(push!, "bottles") : null,
-      seconds = complete ? n(pull!, "seconds") + n(push!, "seconds") : null;
+      push = pick("push");
+    const hasBoth = Boolean(pull && push);
+    const load = hasBoth ? n(pull!, "bottles") + n(push!, "bottles") : null,
+      seconds = hasBoth ? n(pull!, "seconds") + n(push!, "seconds") : null;
+    const directionSummary = (
+      label: string,
+      direction: string,
+      best?: Attempt,
+    ) =>
+      `${label}：${best ? n(best, "bottles") + " 瓶" : rows.filter((a) => a.slotKey.startsWith(direction)).length >= 2 ? "未完成" : "待完成"}`;
     return {
       team,
       primary: load,
       secondary: seconds,
-      qualified: rows.some(
-        (a) =>
-          a.status === "valid" && n(a, "bottles") >= 7 && n(a, "seconds") <= 30,
+      qualified:
+        hasBoth &&
+        rows.some(
+          (a) =>
+            a.status === "valid" &&
+            n(a, "bottles") >= 7 &&
+            n(a, "seconds") <= 30,
+        ),
+      complete: slotOptions("power").every(([slot]) =>
+        rows.some((a) => a.slotKey === slot),
       ),
-      complete,
-      summary: complete
+      summary: hasBoth
         ? load + " 瓶 · " + seconds!.toFixed(1) + " 秒"
-        : "尚未完成拉動與推動",
+        : `${directionSummary("拉動", "pull", pull)} · ${directionSummary("推動", "push", push)}`,
     };
   }
   if (team.categoryId === "program") {
@@ -185,12 +203,14 @@ export function teamResult(
       complete: rows.length >= 2,
       summary:
         seconds === null
-          ? "尚未完成"
+          ? rows.length >= 2
+            ? "未達合格標準"
+            : "尚未完成"
           : seconds.toFixed(1) + " 秒 · " + weight + " g",
     };
   }
   const valid = rows
-    .filter((a) => a.status !== "invalid")
+    .filter((a) => a.status === "valid")
     .sort(
       (a, b) =>
         creativeScore(b) - creativeScore(a) ||
@@ -207,9 +227,23 @@ export function teamResult(
     complete: rows.length >= 2,
     summary:
       score === null
-        ? "尚無成績"
+        ? rows.length >= 2
+          ? "未達合格標準"
+          : "尚無成績"
         : score + " 分 · " + seconds!.toFixed(1) + " 秒",
   };
+}
+export function challengeStatus(
+  result: { team: Team; qualified: boolean; primary: number | null },
+  attemptCount: number,
+) {
+  if (result.team.checkinStatus !== "checked_in")
+    return { label: "尚未報到", tone: "status-not-checked" };
+  if (result.qualified) return { label: "挑戰成功", tone: "status-success" };
+  if (!attemptCount) return { label: "等待挑戰", tone: "status-waiting" };
+  if (attemptCount < slotOptions(result.team.categoryId).length)
+    return { label: "挑戰中", tone: "status-waiting" };
+  return { label: "未達合格標準", tone: "status-incomplete" };
 }
 export function leaderboard(
   teams: Team[],
@@ -299,10 +333,32 @@ export function validateScore(
     Number(data[key]) >= min &&
     Number(data[key]) <= max &&
     (!integer || Number.isInteger(data[key]));
-  if (status === "terminated" && category !== "creative")
-    return "只有科創組可提前終止並保留得分";
-  if (status === "invalid") return reason.trim() ? null : "請填寫無效原因";
-  if (status === "terminated" && !reason.trim()) return "請填寫終止原因";
+  if (status === "terminated")
+    return "不再提供提前終止，請依本回合結果選擇完成或未完成";
+  if (status === "invalid") {
+    if (category === "preschool")
+      return "幼兒組請直接記錄進球數，不使用未完成狀態";
+    if (!failureReasons[category].includes(String(data.failureReason ?? "")))
+      return "請選擇未完成原因";
+    if (
+      data.seconds !== undefined &&
+      data.seconds !== "" &&
+      !number("seconds", 0, Number.MAX_SAFE_INTEGER)
+    )
+      return "未完成秒數可留空；填寫時須為非負數字";
+    if (category === "power" && !number("bottles", 0, 999, true))
+      return "請記錄 0–999 的瓶數";
+    if (category === "program" && !number("weight", 0.1, 100000))
+      return "請記錄車頭淨重";
+    if (
+      category === "creative" &&
+      (!number("regular", 0, 8, true) ||
+        !["none", "correct", "wrong"].includes(String(data.red)) ||
+        !["none", "correct", "wrong"].includes(String(data.blue)))
+    )
+      return "請記錄普通瓶與特殊瓶數據";
+    return null;
+  }
   if (
     category === "preschool" &&
     (!number("childGoals", 0, 4, true) || !number("parentGoals", 0, 2, true))
@@ -334,26 +390,35 @@ export function normalizeScore(
   status: AttemptStatus,
   data: Record<string, number | string | boolean>,
 ) {
-  if (status === "invalid") return {};
   const d = { ...data };
+  if (status !== "invalid") delete d.failureReason;
+  else {
+    if (d.seconds === "") delete d.seconds;
+    if ("completed" in d) d.completed = 0;
+  }
   for (const k of ["seconds", "weight"])
     if (typeof d[k] === "number")
       d[k] = Math.round((Number(d[k]) + Number.EPSILON) * 10) / 10;
   return d;
 }
 export function attemptSummary(a: Attempt): string {
-  if (a.status === "invalid") return "無效／未完成";
+  if (a.status === "invalid" || a.status === "terminated") {
+    const values: string[] = [];
+    if (typeof a.data.bottles === "number") values.push(`${a.data.bottles} 瓶`);
+    if (a.categoryId === "creative" && typeof a.data.regular === "number")
+      values.push(`${creativeScore(a)} 分（紀錄）`);
+    if (typeof a.data.seconds === "number")
+      values.push(`${a.data.seconds.toFixed(1)} 秒`);
+    if (typeof a.data.weight === "number") values.push(`${a.data.weight} g`);
+    return ["未完成", a.data.failureReason, ...values]
+      .filter(Boolean)
+      .join(" · ");
+  }
   if (a.categoryId === "preschool")
-    return String(n(a, "childGoals") + n(a, "parentGoals")) + " 球";
+    return "進球數 " + String(n(a, "childGoals") + n(a, "parentGoals")) + " 球";
   if (a.categoryId === "power")
     return n(a, "bottles") + " 瓶 · " + n(a, "seconds").toFixed(1) + " 秒";
   if (a.categoryId === "program")
     return n(a, "seconds").toFixed(1) + " 秒 · " + n(a, "weight") + " g";
-  return (
-    creativeScore(a) +
-    " 分 · " +
-    n(a, "seconds").toFixed(1) +
-    " 秒" +
-    (a.status === "terminated" ? " · 提前終止" : "")
-  );
+  return creativeScore(a) + " 分 · " + n(a, "seconds").toFixed(1) + " 秒";
 }

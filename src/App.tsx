@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Radio,
@@ -38,6 +38,7 @@ import {
   teamResult,
   attemptSummary,
   maskParticipantName,
+  challengeStatus,
   type Team,
   type Attempt,
   type CategoryId,
@@ -45,6 +46,7 @@ import {
 } from "./domain";
 import {
   loadData,
+  invalidateScoreboard,
   readDemoChallenge,
   saveDemoChallenge,
   subscribe,
@@ -58,12 +60,18 @@ import {
   type ImportTeam,
   type Audit,
   type ServerResult,
+  type PublishedAward,
 } from "./data";
 import { isDemoMode, supabase } from "./supabase";
 import { STAFF_LOGIN_ID, staffAuthPassword } from "./runtime-config";
 import { ScoreForm } from "./ScoreForm";
 import { ImportPanel } from "./ImportPanel";
 import { CategoryTabs } from "./CategoryTabs";
+import {
+  AwardPanel,
+  DrinkControl,
+  useDrinkClaims,
+} from "./ChallengeStaffTools";
 import { downloadCSV } from "./csv";
 const checkinLabels: Record<CheckinStatus, string> = {
   pending: "尚未報到",
@@ -73,24 +81,12 @@ const rules: Record<CategoryId, string> = {
   preschool:
     "每回合小朋友 4 球、家長 2 球，取兩回合最佳。3 球以上挑戰成功，本組不排名。",
   power:
-    "拉動與推動各取瓶數最多的一次，同瓶數取較短時間。合計瓶數優先、合計秒數次之；缺少有效方向不排名。",
+    "拉動與推動各取瓶數最多的一次，同瓶數取較短時間。拉推皆有有效成績且至少一次達7瓶才合格；缺少有效方向不列合計排名。",
   program:
     "兩次取最快有效成績，時間相同以車頭淨重較輕者優先。20 秒內合格，40 秒內有效。",
   creative:
     "每次限時 40 秒，到時保留得分。普通瓶 10 分，特殊瓶正確 20 分、錯誤 5 分。取最高單次，同分取耗時較短。50 分以上合格。",
 };
-function challengeStatus(
-  result: { team: Team; qualified: boolean; primary: number | null },
-  attemptCount: number,
-) {
-  if (result.team.checkinStatus !== "checked_in")
-    return { label: "尚未報到", tone: "status-not-checked" };
-  if (result.qualified) return { label: "挑戰成功", tone: "status-success" };
-  if (attemptCount === 0) return { label: "等待挑戰", tone: "status-waiting" };
-  if (result.primary === null)
-    return { label: "尚無有效成績", tone: "status-incomplete" };
-  return { label: "目前未達合格", tone: "status-incomplete" };
-}
 function checkinTime(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -139,6 +135,116 @@ export default function App() {
     }
   });
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [awards, setAwards] = useState<PublishedAward[]>([]);
+  const drinks = useDrinkClaims(
+    route === "staff" && staff && session && !authLoading
+      ? `${session.user.id}:${staff.role}:${staff.categoryIds.join(",")}`
+      : null,
+  );
+  const returnAnchor = useRef<{
+    teamId: string;
+    group: CategoryId;
+    heat: string;
+    teamHeat: number;
+    query: string;
+    offset: number;
+  } | null>(null);
+  const restoreList = useRef(false);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const navigationOwner = useRef<string>(crypto.randomUUID());
+  useEffect(() => {
+    if (route !== "staff") return;
+    const previous = history.scrollRestoration;
+    history.scrollRestoration = "manual";
+    return () => {
+      history.scrollRestoration = previous;
+    };
+  }, [route]);
+  function openScore(team: Team) {
+    const offset =
+      document.getElementById(`participant-${team.id}`)?.getBoundingClientRect()
+        .top ?? 100;
+    returnAnchor.current = {
+      teamId: team.id,
+      group,
+      heat: heatFilter,
+      teamHeat: team.heat,
+      query,
+      offset,
+    };
+    history.pushState(
+      {
+        ...history.state,
+        ttraScoring: { owner: navigationOwner.current, teamId: team.id },
+      },
+      "",
+    );
+    setSelected(team);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  function returnToList() {
+    restoreList.current = true;
+    if (history.state?.ttraScoring?.owner === navigationOwner.current)
+      history.back();
+    else setSelected(null);
+  }
+  useEffect(() => {
+    const onPop = () => {
+      if (!location.hash.endsWith("/staff") || !staff || tab !== "score")
+        return;
+      const active = history.state?.ttraScoring;
+      if (active?.owner === navigationOwner.current) {
+        const team = teams.find((t) => t.id === active.teamId);
+        if (team) {
+          setGroup(team.categoryId);
+          setSelected(team);
+        }
+      } else if (returnAnchor.current) {
+        const anchor = returnAnchor.current;
+        setGroup(anchor.group);
+        setHeatFilter(anchor.heat);
+        setQuery(anchor.query);
+        restoreList.current = true;
+        setSelected(null);
+      }
+    };
+    addEventListener("popstate", onPop);
+    return () => removeEventListener("popstate", onPop);
+  }, [teams, staff, tab]);
+  useEffect(() => {
+    if (
+      selected ||
+      loading ||
+      !staff ||
+      tab !== "score" ||
+      !restoreList.current ||
+      !returnAnchor.current ||
+      route !== "staff"
+    )
+      return;
+    const anchor = returnAnchor.current;
+    const frame = requestAnimationFrame(() => {
+      const row = document.getElementById(`participant-${anchor.teamId}`);
+      if (row) {
+        window.scrollBy({
+          top: row.getBoundingClientRect().top - Math.max(16, anchor.offset),
+          behavior: "instant",
+        });
+        setHighlighted(anchor.teamId);
+      } else {
+        document
+          .getElementById(`heat-${anchor.group}-${anchor.teamHeat}`)
+          ?.scrollIntoView({ block: "start" });
+      }
+      restoreList.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selected, loading, route, teams, staff, tab]);
+  useEffect(() => {
+    if (!highlighted) return;
+    const timer = setTimeout(() => setHighlighted(null), 2000);
+    return () => clearTimeout(timer);
+  }, [highlighted]);
   useEffect(() => {
     if (!loading) saveDemoChallenge(teams, attempts, audit);
   }, [teams, attempts, audit, loading]);
@@ -148,6 +254,7 @@ export default function App() {
       setTeams(d.teams);
       setAttempts(d.attempts);
       setServerResults(d.results ?? []);
+      setAwards(d.awards ?? []);
       if (isDemoMode) setAudit(d.audit ?? []);
       setUpdated(new Date());
       setError("");
@@ -179,6 +286,8 @@ export default function App() {
       },
       off = () => setOnline(false),
       hash = () => {
+        returnAnchor.current = null;
+        restoreList.current = false;
         setRoute(location.hash.endsWith("/staff") ? "staff" : "public");
         setSelected(null);
       };
@@ -213,9 +322,17 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, s) => {
       authChanged = true;
-      // Updating a password emits USER_UPDATED before updateUser resolves. The
-      // session remains valid, so keep the staff record and PIN dialog mounted.
-      if (event === "USER_UPDATED") return;
+      if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") return;
+      invalidateScoreboard();
+      setTeams([]);
+      setAttempts([]);
+      setServerResults([]);
+      setAwards([]);
+      returnAnchor.current = null;
+      restoreList.current = false;
+      setTimeout(() => {
+        if (live) void refresh();
+      }, 0);
       setStaff(null);
       setSelected(null);
       setDetail(null);
@@ -402,10 +519,20 @@ export default function App() {
     }
   }
   function selectCategory(categoryId: CategoryId) {
+    returnAnchor.current = null;
+    restoreList.current = false;
+    if (history.state?.ttraScoring?.owner === navigationOwner.current) {
+      const { ttraScoring: _score, ...state } = history.state;
+      history.replaceState(state, "");
+    }
     setGroup(categoryId);
     setSelected(null);
     setQuery("");
     setHeatFilter("all");
+  }
+  function selectTab(value: string) {
+    selectCategory(group);
+    setTab(value);
   }
   const stats = categoryStats(teams, attempts, group);
   const statusLabel = !online
@@ -560,8 +687,7 @@ export default function App() {
                   <Button
                     variant={tab === "score" ? "default" : "outline"}
                     onClick={() => {
-                      setTab("score");
-                      setSelected(null);
+                      selectTab("score");
                     }}
                   >
                     <Trophy />
@@ -573,18 +699,23 @@ export default function App() {
                     <Button
                       variant={tab === "import" ? "default" : "outline"}
                       onClick={() => {
-                        setTab("import");
-                        setSelected(null);
+                        selectTab("import");
                       }}
                     >
                       <Upload />
                       匯入名單
                     </Button>
                     <Button
+                      variant={tab === "awards" ? "default" : "outline"}
+                      onClick={() => selectTab("awards")}
+                    >
+                      <Trophy />
+                      名次公告
+                    </Button>
+                    <Button
                       variant={tab === "audit" ? "default" : "outline"}
                       onClick={() => {
-                        setTab("audit");
-                        setSelected(null);
+                        selectTab("audit");
                       }}
                     >
                       <History />
@@ -607,8 +738,20 @@ export default function App() {
               </div>
             )}
             {route === "staff" &&
-            tab === "import" &&
+            tab === "awards" &&
             staff?.role === "admin" ? (
+              <>
+                <CategoryTabs value={group} onChange={selectCategory} />
+                <AwardPanel
+                  key={group}
+                  categoryId={group}
+                  disabled={!online || isDemoMode}
+                  onPublished={refresh}
+                />
+              </>
+            ) : route === "staff" &&
+              tab === "import" &&
+              staff?.role === "admin" ? (
               <ImportPanel
                 key={group}
                 teams={teams}
@@ -622,7 +765,7 @@ export default function App() {
               staff?.role === "admin" ? (
               <section className="panel">
                 <div className="panel-heading">
-                  <h2>成績與報到修改紀錄</h2>
+                  <h2>工作台修改紀錄</h2>
                   <span className="muted">最近 200 筆</span>
                 </div>
                 {audit.length === 0 ? (
@@ -659,7 +802,7 @@ export default function App() {
                     <Button
                       variant="ghost"
                       className="back-button"
-                      onClick={() => setSelected(null)}
+                      onClick={returnToList}
                     >
                       <ArrowLeft />
                       返回參賽者名單
@@ -680,6 +823,17 @@ export default function App() {
                   </>
                 ) : (
                   <section className="panel">
+                    {route === "staff" && drinks.error && (
+                      <div role="alert" className="error-message global-error">
+                        {drinks.error}
+                        <Button
+                          variant="outline"
+                          onClick={() => void drinks.refresh()}
+                        >
+                          重試飲料同步
+                        </Button>
+                      </div>
+                    )}
                     <div className="panel-heading">
                       <div>
                         <p className="eyebrow">
@@ -816,6 +970,7 @@ export default function App() {
                           .map((heat) => (
                             <section
                               key={heat}
+                              id={`heat-${group}-${heat}`}
                               className="heat-section"
                               aria-label={"第 " + heat + " 梯名單"}
                             >
@@ -850,7 +1005,11 @@ export default function App() {
                                         : r.team.name,
                                     arrivedAt = checkinTime(r.team.checkedInAt);
                                   return (
-                                    <div className="score-row" key={r.team.id}>
+                                    <div
+                                      id={`participant-${r.team.id}`}
+                                      className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}`}
+                                      key={r.team.id}
+                                    >
                                       {route === "staff" && (
                                         <strong className="rank">
                                           {group === "preschool"
@@ -878,7 +1037,10 @@ export default function App() {
                                           )}
                                         </span>
                                         <small>
-                                          #{r.team.number} · 第 {r.team.heat} 梯
+                                          <span className="participant-number">
+                                            {r.team.number}
+                                          </span>{" "}
+                                          · 第 {r.team.heat} 梯
                                         </small>
                                       </button>
                                       {route === "staff" && (
@@ -919,12 +1081,33 @@ export default function App() {
                                         >
                                           {state.label}
                                         </span>
-                                        <small>
+                                        <small className="round-progress">
                                           {attemptCount}/
                                           {slotOptions(group).length} 回合
                                         </small>
+                                        {route === "public" &&
+                                          awards.find(
+                                            (a) => a.team_id === r.team.id,
+                                          ) && (
+                                            <span className="award-badge">
+                                              官方第{" "}
+                                              {
+                                                awards.find(
+                                                  (a) =>
+                                                    a.team_id === r.team.id,
+                                                )!.rank
+                                              }{" "}
+                                              名
+                                            </span>
+                                          )}
                                       </div>
                                       <div className="result-numbers">
+                                        {group === "preschool" &&
+                                          route === "public" && (
+                                            <span className="goal-label">
+                                              進球數
+                                            </span>
+                                          )}
                                         <strong className="score-number">
                                           {r.primary === null
                                             ? "—"
@@ -941,6 +1124,12 @@ export default function App() {
                                                   : "分"}
                                           </small>
                                         </strong>
+                                        {group === "power" &&
+                                          r.primary === null && (
+                                            <small className="direction-summary">
+                                              {r.summary}
+                                            </small>
+                                          )}
                                         {r.secondary !== null && (
                                           <small>
                                             {r.secondary.toFixed(1)}{" "}
@@ -957,7 +1146,7 @@ export default function App() {
                                               r.team.checkinStatus !==
                                                 "checked_in"
                                             }
-                                            onClick={() => setSelected(r.team)}
+                                            onClick={() => openScore(r.team)}
                                           >
                                             {r.team.checkinStatus ===
                                             "checked_in"
@@ -986,6 +1175,13 @@ export default function App() {
                                             }
                                           />
                                         </Button>
+                                      )}
+                                      {route === "staff" && (
+                                        <DrinkControl
+                                          team={r.team}
+                                          state={drinks}
+                                          disabled={!online || !inScope(r.team)}
+                                        />
                                       )}
                                     </div>
                                   );
@@ -1033,6 +1229,16 @@ export default function App() {
           </DialogDescription>
           {detail && (
             <>
+              <span
+                className={`status-badge ${challengeStatus(teamResult(detail, attempts), attempts.filter((a) => a.teamId === detail.id).length).tone}`}
+              >
+                {
+                  challengeStatus(
+                    teamResult(detail, attempts),
+                    attempts.filter((a) => a.teamId === detail.id).length,
+                  ).label
+                }
+              </span>
               <strong>{teamResult(detail, attempts).summary}</strong>
               {slotOptions(detail.categoryId).map(([key, label]) => {
                 const a = attempts.find(

@@ -17,6 +17,7 @@ import {
   slotOptions,
   validateScore,
   normalizeScore,
+  failureReasons,
   type Team,
   type Attempt,
   type AttemptStatus,
@@ -42,7 +43,11 @@ export function ScoreForm({
     existing?.data ?? initial(team.categoryId, attempts, team.id),
   );
   const [status, setStatus] = useState<AttemptStatus>(
-    existing?.status ?? "valid",
+    team.categoryId === "preschool"
+      ? "valid"
+      : existing?.status === "terminated"
+        ? "invalid"
+        : (existing?.status ?? "valid"),
   );
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -57,7 +62,13 @@ export function ScoreForm({
       (a) => a.teamId === team.id && a.slotKey === value,
     );
     setData(old?.data ?? initial(team.categoryId, attempts, team.id));
-    setStatus(old?.status ?? "valid");
+    setStatus(
+      team.categoryId === "preschool"
+        ? "valid"
+        : old?.status === "terminated"
+          ? "invalid"
+          : (old?.status ?? "valid"),
+    );
     expectedRevision.current = old?.revision ?? (old ? 1 : 0);
     setReason("");
     setError("");
@@ -68,7 +79,7 @@ export function ScoreForm({
     key: string,
     label: string,
     min: number,
-    max: number,
+    max: number | undefined,
     step = 1,
   ) {
     return (
@@ -82,7 +93,7 @@ export function ScoreForm({
           step={step}
           inputMode={step === 1 ? "numeric" : "decimal"}
           value={data[key] === undefined ? "" : String(data[key])}
-          required
+          required={!(key === "seconds" && status === "invalid")}
           onChange={(e) => {
             setSuccess("");
             setData({
@@ -118,7 +129,10 @@ export function ScoreForm({
         slot,
         status,
         data: clean,
-        reason,
+        reason:
+          status === "invalid"
+            ? `未完成：${data.failureReason}${reason.trim() ? "；更正／備註：" + reason.trim() : ""}`
+            : reason,
         revision: expectedRevision.current,
       });
       if (request.current?.signature !== signature)
@@ -129,7 +143,10 @@ export function ScoreForm({
         slotKey: slot,
         attemptNo: slots.findIndex((s) => s[0] === slot) + 1,
         status,
-        reason,
+        reason:
+          status === "invalid"
+            ? `未完成：${data.failureReason}${reason.trim() ? "；更正／備註：" + reason.trim() : ""}`
+            : reason,
         data: clean,
         requestId: request.current.id,
         expectedRevision: expectedRevision.current,
@@ -173,24 +190,50 @@ export function ScoreForm({
             </Button>
           ))}
         </div>
-        <label className="field">
-          <span>回合狀態</span>
-          <NativeSelect
-            aria-label="回合狀態"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as AttemptStatus);
-              setSuccess("");
-            }}
-          >
-            <option value="valid">正常完成</option>
-            {team.categoryId === "creative" && (
-              <option value="terminated">提前終止，保留當下分數</option>
-            )}
-            <option value="invalid">本回合無效／未完成</option>
-          </NativeSelect>
-        </label>
-        {validStatus && (
+        {team.categoryId !== "preschool" && (
+          <label className="field">
+            <span>回合狀態</span>
+            <NativeSelect
+              aria-label="回合狀態"
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value as AttemptStatus);
+                if (team.categoryId === "program")
+                  setData((d) => ({
+                    ...d,
+                    completed: e.target.value === "valid" ? 1 : 0,
+                  }));
+                setSuccess("");
+              }}
+            >
+              <option value="valid">正常完成</option>
+              <option value="invalid">未完成</option>
+            </NativeSelect>
+          </label>
+        )}
+        {status === "invalid" && (
+          <label className="field">
+            <span>未完成原因</span>
+            <NativeSelect
+              aria-label="未完成原因"
+              value={String(data.failureReason ?? "")}
+              onChange={(e) => {
+                setData({ ...data, failureReason: e.target.value });
+                setSuccess("");
+              }}
+            >
+              <option value="" disabled>
+                請選擇原因
+              </option>
+              {failureReasons[team.categoryId].map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+        )}
+        {
           <div className="field-grid">
             {team.categoryId === "preschool" && (
               <>
@@ -201,19 +244,39 @@ export function ScoreForm({
             {team.categoryId === "power" && (
               <>
                 {numeric("bottles", "載重瓶數", 0, 999)}
-                {numeric("seconds", "完成時間（秒）", 0.1, 30, 0.1)}
+                {numeric(
+                  "seconds",
+                  validStatus ? "完成時間（秒）" : "實際秒數（可留空）",
+                  validStatus ? 0.1 : 0,
+                  validStatus ? 30 : undefined,
+                  0.1,
+                )}
               </>
             )}
             {team.categoryId === "program" && (
               <>
-                {numeric("seconds", "完成時間（秒）", 0.1, 40, 0.1)}
+                {numeric(
+                  "seconds",
+                  validStatus ? "完成時間（秒）" : "實際秒數（可留空）",
+                  validStatus ? 0.1 : 0,
+                  validStatus ? 40 : undefined,
+                  0.1,
+                )}
                 {numeric("weight", "車頭淨重（g，無板車）", 0.1, 100000, 0.1)}
               </>
             )}
             {team.categoryId === "creative" && (
               <>
                 {numeric("regular", "普通瓶得分數量", 0, 8)}
-                {numeric("seconds", "達到最終分數的耗時（秒）", 0, 40, 0.1)}
+                {numeric(
+                  "seconds",
+                  validStatus
+                    ? "達到最終分數的耗時（秒）"
+                    : "實際秒數（可留空）",
+                  0,
+                  validStatus ? 40 : undefined,
+                  0.1,
+                )}
                 {["red", "blue"].map((color) => (
                   <label className="field" key={color}>
                     <span>{color === "red" ? "紅色" : "藍色"}特殊瓶</span>
@@ -233,11 +296,16 @@ export function ScoreForm({
               </>
             )}
           </div>
+        }
+        {status === "invalid" && (
+          <p className="hint">
+            仍保存本回合數據，但不列為有效最佳成績。未計時可留空，有計時則填實際秒數。
+          </p>
         )}
         {team.categoryId === "creative" && validStatus && (
           <p className="hint">
             每次限時 40 秒，時間到保留當下得分並填入 40.0
-            秒。提前結束記錄實際耗時；仍由現場計時，網站不自動計時或送分。
+            秒。車體掉出場地、零件脫落或翻覆請選「未完成」。
           </p>
         )}
         {team.categoryId === "creative" && validStatus && (
@@ -260,28 +328,20 @@ export function ScoreForm({
         {team.categoryId === "program" && validStatus && (
           <p className="hint">
             正常完成代表已自主折返回到起點。20 秒內合格，超過 40
-            秒請選「無效／未完成」。重量應使用賽前同一次量測值。
+            秒不列有效成績。重量應使用賽前同一次量測值。
           </p>
         )}
         {team.categoryId === "power" && validStatus && (
-          <p className="hint">任何一瓶掉落或逾時，本回合均不計載重與秒數。</p>
+          <p className="hint">
+            未完成回合仍保留數據，但不列為有效拉動／推動成績。
+          </p>
         )}
         <label className="field">
-          <span>
-            {status === "terminated"
-              ? "終止原因"
-              : existing
-                ? "修改原因（必填）"
-                : "原因／備註（內部）"}
-          </span>
+          <span>{existing ? "修改原因（必填）" : "備註（選填）"}</span>
           <Textarea
             aria-label="原因"
             placeholder={
-              status === "terminated"
-                ? "例如：車體掉落、零件脫落、翻覆"
-                : existing
-                  ? "請說明修正原因"
-                  : "無效回合必須填寫原因"
+              existing ? "請說明修正原因" : "有其他需要說明的事項再填寫"
             }
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -329,36 +389,37 @@ export function ScoreForm({
             。送出後家長會立即看到本次成績。
           </DialogDescription>
           <div className="confirm-data">
-            {status === "invalid"
-              ? "本回合無效"
-              : Object.entries(data)
-                  .filter(([k]) => k !== "completed")
-                  .map(([k, v]) => (
-                    <div key={k}>
+            {status === "invalid" && (
+              <p>未完成 · {String(data.failureReason ?? "")}</p>
+            )}
+            {Object.entries(data)
+              .filter(([k]) => k !== "completed" && k !== "failureReason")
+              .map(([k, v]) => (
+                <div key={k}>
+                  {
+                    (
                       {
-                        (
-                          {
-                            childGoals: "小朋友進球",
-                            parentGoals: "家長進球",
-                            bottles: "瓶數",
-                            seconds: "秒數",
-                            weight: "淨重 g",
-                            regular: "普通瓶",
-                            red: "紅瓶",
-                            blue: "藍瓶",
-                          } as Record<string, string>
-                        )[k]
-                      }
-                      ：
-                      {(
-                        {
-                          correct: "正確區域",
-                          wrong: "錯誤區域",
-                          none: "未得分",
-                        } as Record<string, string>
-                      )[String(v)] ?? String(v)}
-                    </div>
-                  ))}
+                        childGoals: "小朋友進球",
+                        parentGoals: "家長進球",
+                        bottles: "瓶數",
+                        seconds: "秒數",
+                        weight: "淨重 g",
+                        regular: "普通瓶",
+                        red: "紅瓶",
+                        blue: "藍瓶",
+                      } as Record<string, string>
+                    )[k]
+                  }
+                  ：
+                  {(
+                    {
+                      correct: "正確區域",
+                      wrong: "錯誤區域",
+                      none: "未得分",
+                    } as Record<string, string>
+                  )[String(v)] ?? (v === "" ? "未記錄" : String(v))}
+                </div>
+              ))}
           </div>
           {error && (
             <p role="alert" className="error-message">

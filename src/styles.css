@@ -997,3 +997,127 @@ footer {
   border: 1px solid var(--border);
   background: var(--popover);
 }
+
+/* Field-side controls stay legible on a phone. */
+.score-row .team-cell .participant-number {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #263b31;
+  display: inline-block;
+}
+.score-row .result-status .round-progress {
+  font-size: 1rem;
+  font-weight: 750;
+  color: #46554b;
+  white-space: nowrap;
+}
+.back-button[data-slot="button"] {
+  font-size: 1.125rem;
+  font-weight: 750;
+  min-height: 48px;
+  padding: 12px 16px;
+}
+.returned-participant {
+  background: #e5f4ca;
+  outline: 2px solid #72993c;
+  outline-offset: -2px;
+}
+.goal-label {
+  font-size: 0.875rem;
+  color: #435744;
+  font-weight: 650;
+}
+.drink-control {
+  flex: 0 0 100px;
+  font-size: 0.875rem;
+}
+.staff-page .score-row {
+  flex-wrap: wrap;
+}
+.staff-page .team-cell {
+  min-width: 140px;
+}
+.drink-control label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+}
+.drink-control label > span:last-child,
+.award-confirm {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+}
+.drink-control input,
+.award-confirm input {
+  width: 20px;
+  height: 20px;
+  accent-color: #537127;
+}
+.drink-control small {
+  display: block;
+  max-width: 160px;
+  overflow-wrap: anywhere;
+}
+.direction-summary {
+  white-space: normal;
+  max-width: 170px;
+  line-height: 1.5;
+}
+.award-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.award-dialog {
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+.award-preview {
+  max-height: 40dvh;
+  overflow-y: auto;
+}
+.award-preview > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e0e4d9;
+}
+.award-badge {
+  display: inline-block;
+  color: #654006;
+  background: #fff0bd;
+  border: 1px solid #b67b14;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 750;
+}
+@media (max-width: 700px) {
+  .staff-page .score-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .score-row .result-status {
+    flex-wrap: wrap;
+  }
+  .staff-page .drink-control {
+    flex-basis: 100%;
+    border-top: 1px dashed #dce1d4;
+    padding-top: 6px;
+  }
+  .drink-control label {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .drink-control small {
+    max-width: 100%;
+  }
+  .staff-page .score-row .participant-number {
+    font-size: 1.2rem;
+  }
+}

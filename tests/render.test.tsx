@@ -47,6 +47,9 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toContain("參賽者報到");
     expect(html).toContain("尚未報到");
     expect(html).toContain("已報到");
+    expect(html).toContain("飲料已領取");
+    expect(html).toContain('class="participant-number"');
+    expect(html).toContain('class="round-progress"');
   });
   it("匯入介面使用單人賽用詞並說明家長端姓名遮罩", () => {
     const html = renderToString(
@@ -102,7 +105,46 @@ describe("非瀏覽器渲染檢查", () => {
       expect(html).toContain("陳宥安");
       expect(html).toContain("確認並發布成績");
       expect(html).not.toContain("NaN");
+      expect(html).not.toContain("提前終止");
+      if (c.id === "preschool") expect(html).not.toContain("回合狀態");
     });
+  it("未完成表單保留數字欄位且只提供本組原因，秒數沒有時限上限", () => {
+    const html = renderToString(
+      <ScoreForm
+        team={{
+          id: "x",
+          number: "動A001",
+          name: "王小明",
+          categoryId: "power",
+          heat: 1,
+          checkinStatus: "checked_in",
+          checkedInAt: null,
+        }}
+        attempts={[
+          {
+            id: "a",
+            teamId: "x",
+            categoryId: "power",
+            slotKey: "pull-1",
+            attemptNo: 1,
+            status: "invalid",
+            data: { bottles: 8, seconds: 51.5, failureReason: "超過邊界" },
+            submittedAt: "",
+            revision: 1,
+          },
+        ]}
+        onSave={async () => {}}
+        disabled={false}
+      />,
+    );
+    expect(html).toContain("未完成原因");
+    expect(html).toContain("車體鬆脫");
+    expect(html).not.toContain("翻覆");
+    expect(html).toContain("實際秒數（可留空）");
+    expect(html).toContain('value="51.5"');
+    expect(html).not.toContain('max="30"');
+    expect(html).toContain("修改原因（必填）");
+  });
 });
 it("學科家長入口不渲染內部登分功能", () => {
   vi.stubGlobal("navigator", { onLine: true });

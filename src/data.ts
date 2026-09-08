@@ -16,6 +16,13 @@ export type ServerResult = {
   complete: boolean;
   rank: number | null;
 };
+export type PublishedAward = {
+  team_id: string;
+  rank: number;
+  published_at: string;
+  category_id: CategoryId;
+  heat: number;
+};
 export type Staff = {
   role: "admin" | "judge" | "checkin";
   categoryIds: CategoryId[];
@@ -64,6 +71,7 @@ export const mapAttempt = (x: any): Attempt => ({
   slotKey: x.slot_key,
   attemptNo: x.attempt_no,
   status: x.status,
+  failureReason: x.score_data?.failureReason,
   revision: x.revision,
   data: x.score_data,
   submittedAt: x.submitted_at,
@@ -72,6 +80,7 @@ type Snapshot = {
   teams: Team[];
   attempts: Attempt[];
   results?: ServerResult[];
+  awards?: PublishedAward[];
   audit?: Audit[];
 };
 let demoSnapshot: Snapshot = {
@@ -92,24 +101,34 @@ export function saveDemoChallenge(
 let cached: Snapshot | undefined;
 let lastVersion = -1;
 let pending: Promise<Snapshot> | null = null;
+let authGeneration = 0;
+export function invalidateScoreboard() {
+  authGeneration += 1;
+  cached = undefined;
+  lastVersion = -1;
+  pending = null;
+}
 export function loadData(): Promise<Snapshot> {
   if (isDemoMode) return Promise.resolve(demoSnapshot);
   if (pending) return pending;
-  pending = loadRemote().finally(() => {
-    pending = null;
+  const request = loadRemote(authGeneration).finally(() => {
+    if (pending === request) pending = null;
   });
+  pending = request;
   return pending;
 }
-async function loadRemote(): Promise<Snapshot> {
+async function loadRemote(generation: number): Promise<Snapshot> {
   const { data, error } = await supabase!.rpc("get_scoreboard", {
     p_version: lastVersion,
   });
+  if (generation !== authGeneration) return loadData();
   if (error) throw error;
   if (data.unchanged && cached) return cached;
   cached = {
     teams: (data.teams ?? []).map(mapTeam),
     attempts: (data.attempts ?? []).map(mapAttempt),
     results: data.results ?? [],
+    awards: data.awards ?? [],
   };
   lastVersion = data.version;
   return cached;

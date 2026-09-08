@@ -92,6 +92,8 @@ beforeAll(async () => {
     "006_rank_by_heat.sql",
     "007_checkin_time_and_public_names.sql",
     "008_academic_safe_updates.sql",
+    "009_challenge_attempt_rules.sql",
+    "010_rewards_and_award_publication.sql",
   ])
     await db.exec(
       readFileSync(
@@ -106,7 +108,7 @@ beforeAll(async () => {
 }, 30000);
 beforeEach(async () => {
   await db.exec(
-    "reset role; truncate public.teams,public.attempts,private.audit_log,private.requests,private.academic_candidates,private.academic_audit,public.academic_results cascade; update private.academic_state set version=0; update public.academic_publication set version=0,published_at=null",
+    "reset role; update private.award_settings set quota=null,revision=0,publication_id=null where true; delete from private.award_publications where true; truncate public.teams,public.attempts,private.audit_log,private.requests,private.academic_candidates,private.academic_audit,public.academic_results cascade; update private.academic_state set version=0; update public.academic_publication set version=0,published_at=null",
   );
 });
 async function academicSetup() {
@@ -120,6 +122,336 @@ async function academicSetup() {
   ]);
   return academicWorkspace();
 }
+async function rpcResult(name: string, args: unknown[] = []) {
+  return (
+    await db.query<{ value: any }>(
+      `select public.${name}(${args.map((_, i) => "$" + (i + 1)).join(",")}) value`,
+      args,
+    )
+  ).rows[0].value;
+}
+describe("挑戰賽新版規則、飲料與公告", () => {
+  it("全賽事名次可一次公告，重送不重複且不同梯次同時生效", async () => {
+    const one = await createTeam("program", "程A001"),
+      two = await createTeam("creative", "機B001", 2);
+    await submit(
+      input(one, "program", "round-1", {
+        completed: 1,
+        seconds: 15,
+        weight: 300,
+      }),
+    );
+    await submit(
+      input(two, "creative", "left", {
+        regular: 8,
+        red: "none",
+        blue: "none",
+        seconds: 30,
+      }),
+    );
+    await expect(rpcResult("preview_all_awards")).rejects.toThrow("名額");
+    await rpcResult("set_award_quota", ["program", 1, 1, 0]);
+    await rpcResult("set_award_quota", ["creative", 2, 1, 0]);
+    const preview = await rpcResult("preview_all_awards");
+    expect(preview.groups).toHaveLength(2);
+    const args = [preview.version, crypto.randomUUID()];
+    const saved = await rpcResult("publish_all_awards", args);
+    expect(saved).toHaveLength(2);
+    expect(await rpcResult("publish_all_awards", args)).toEqual(saved);
+    expect(await rpcResult("get_awards")).toHaveLength(2);
+    await asUser(judge);
+    await expect(rpcResult("preview_all_awards")).rejects.toThrow("權限");
+    await expect(rpcResult("publish_all_awards", args)).rejects.toThrow("權限");
+  });
+  it("統一公告有空梯或超額同名次時整批不發布，過期預覽被拒絕", async () => {
+    const one = await createTeam("program", "程A001"),
+      two = await createTeam("program", "程B001", 2);
+    await submit(
+      input(one, "program", "round-1", {
+        completed: 1,
+        seconds: 15,
+        weight: 300,
+      }),
+    );
+    await rpcResult("set_award_quota", ["program", 1, 1, 0]);
+    await rpcResult("set_award_quota", ["program", 2, 1, 0]);
+    const preview = await rpcResult("preview_all_awards");
+    await expect(
+      rpcResult("publish_all_awards", [preview.version, crypto.randomUUID()]),
+    ).rejects.toThrow("尚無");
+    expect(await rpcResult("get_awards")).toEqual([]);
+    await submit(
+      input(two, "program", "round-1", {
+        completed: 1,
+        seconds: 15,
+        weight: 300,
+      }),
+    );
+    await expect(
+      rpcResult("publish_all_awards", [preview.version, crypto.randomUUID()]),
+    ).rejects.toThrow("已更新");
+    const third = await createTeam("program", "程B002", 2);
+    await submit(
+      input(third, "program", "round-1", {
+        completed: 1,
+        seconds: 15,
+        weight: 300,
+      }),
+    );
+    const tied = await rpcResult("preview_all_awards");
+    await expect(
+      rpcResult("publish_all_awards", [tied.version, crypto.randomUUID()]),
+    ).rejects.toThrow("同名次");
+    expect(await rpcResult("get_awards")).toEqual([]);
+  });
+  it("未完成保留瓶數及超時實際秒數，不能取得有效合計或合格", async () => {
+    const id = await createTeam();
+    for (const slot of ["pull-1", "pull-2"])
+      await submit({
+        ...input(id, "power", slot, {
+          bottles: 9,
+          seconds: 60.5,
+          failureReason: "超過邊界",
+        }),
+        status: "invalid",
+        reason: "超過邊界",
+      });
+    for (const slot of ["push-1", "push-2"])
+      await submit(input(id, "power", slot, { bottles: 8, seconds: 20 }));
+    const board = await rpcResult("get_scoreboard");
+    expect(board.results[0]).toMatchObject({
+      primary_score: null,
+      secondary_score: null,
+      qualified: false,
+      complete: true,
+      rank: null,
+    });
+    expect(
+      board.attempts.find((a: any) => a.slot_key === "pull-1").score_data,
+    ).toEqual({ bottles: 9, seconds: 60.5, failureReason: "超過邊界" });
+  });
+  it("三組未完成可不計時，保留其他數據且拒絕錯誤原因與負秒數", async () => {
+    for (const [category, slot, data] of [
+      ["power", "pull-1", { bottles: 8, failureReason: "車體鬆脫" }],
+      ["program", "round-1", { weight: 300, failureReason: "超過邊界" }],
+      [
+        "creative",
+        "left",
+        { regular: 4, red: "correct", blue: "none", failureReason: "翻覆" },
+      ],
+    ] as const) {
+      const id = await createTeam(category);
+      const p = {
+        ...input(id, category, slot, data),
+        status: "invalid",
+        reason: "未完成",
+      };
+      const saved = await submit(p);
+      expect(saved.score_data).toMatchObject(data);
+      expect(saved.score_data).not.toHaveProperty("seconds");
+      for (const patch of [{ seconds: -1 }, { failureReason: "任意原因" }])
+        await expect(
+          submit({
+            ...p,
+            request_id: crypto.randomUUID(),
+            expected_revision: 1,
+            score_data: { ...data, ...patch },
+          }),
+        ).rejects.toThrow();
+    }
+  });
+  it("幼兒無未完成、科創無提前終止；正常回合仍須遵守時限", async () => {
+    const child = await createTeam("preschool");
+    await expect(
+      submit({
+        ...input(child, "preschool", "round-1", {
+          childGoals: 0,
+          parentGoals: 0,
+        }),
+        status: "invalid",
+        reason: "未完成",
+      }),
+    ).rejects.toThrow("幼兒");
+    const id = await createTeam("creative");
+    await expect(
+      submit({
+        ...input(id, "creative", "left", {
+          regular: 4,
+          red: "none",
+          blue: "none",
+          seconds: 5,
+        }),
+        status: "terminated",
+        reason: "翻覆",
+      }),
+    ).rejects.toThrow("提前終止");
+  });
+  it("飲料只限有權限工作人員，跨組與匿名讀寫被拒絕", async () => {
+    const power = await createTeam(),
+      creative = await createTeam("creative");
+    await rpcResult("set_drink_claim", [creative, true, 0]);
+    await asUser(judge);
+    await rpcResult("set_drink_claim", [power, true, 0]);
+    expect(await rpcResult("get_drink_claims")).toHaveLength(1);
+    await expect(
+      rpcResult("set_drink_claim", [creative, false, 1]),
+    ).rejects.toThrow("組別");
+    await asUser(outsider);
+    await expect(rpcResult("get_drink_claims")).rejects.toThrow("權限");
+    await asUser(null, "anon");
+    await expect(rpcResult("get_drink_claims")).rejects.toThrow();
+    await expect(
+      rpcResult("set_drink_claim", [power, false, 1]),
+    ).rejects.toThrow();
+    expect(await rpcResult("get_scoreboard")).not.toHaveProperty(
+      "drink_claims",
+    );
+  });
+  it("領取勾選重送不重複稽核、舊版本無法覆蓋，取消誤勾有紀錄", async () => {
+    const id = await createTeam();
+    const first = await rpcResult("set_drink_claim", [id, true, 0]);
+    expect(first).toMatchObject({ claimed: true, revision: 1 });
+    expect(await rpcResult("set_drink_claim", [id, true, 0])).toEqual(first);
+    await expect(rpcResult("set_drink_claim", [id, false, 0])).rejects.toThrow(
+      "更新",
+    );
+    expect(await rpcResult("set_drink_claim", [id, false, 1])).toMatchObject({
+      claimed: false,
+      revision: 2,
+      claimed_at: null,
+    });
+    expect(
+      (await rpcResult("read_audit")).filter(
+        (a: any) => a.action === "drink_claim_update",
+      ),
+    ).toHaveLength(2);
+  });
+  it("公告名額預設空白、僅管理員可設定與預覽，幼兒不得設名額", async () => {
+    await asUser(admin);
+    expect(await rpcResult("get_award_settings")).toHaveLength(7);
+    expect(
+      (await rpcResult("get_award_settings")).every(
+        (s: any) => s.quota === null && s.published_at === null,
+      ),
+    ).toBe(true);
+    await expect(rpcResult("preview_awards", ["power", 1])).rejects.toThrow(
+      "名額",
+    );
+    await expect(
+      rpcResult("set_award_quota", ["preschool", 1, 3, 0]),
+    ).rejects.toThrow("不提供");
+    for (const id of [judge, checkin, outsider]) {
+      await asUser(id);
+      await expect(rpcResult("get_award_settings")).rejects.toThrow("權限");
+      await expect(
+        rpcResult("set_award_quota", ["power", 1, 3, 0]),
+      ).rejects.toThrow("權限");
+      await expect(rpcResult("preview_awards", ["power", 1])).rejects.toThrow(
+        "權限",
+      );
+    }
+  });
+  it("公開即時分數而不公開暫定排名，公布只含本梯名額內名次且不含全名", async () => {
+    const first = await createTeam("program", "程A001"),
+      second = await createTeam("program", "程A002"),
+      otherHeat = await createTeam("program", "程B001", 2);
+    for (const [id, seconds] of [
+      [first, 15],
+      [second, 20],
+      [otherHeat, 10],
+    ] as const)
+      await submit(
+        input(id, "program", "round-1", { completed: 1, seconds, weight: 300 }),
+      );
+    await asUser(null, "anon");
+    const before = await rpcResult("get_scoreboard");
+    expect(before.results.every((r: any) => r.rank === null)).toBe(true);
+    expect(
+      before.results.find((r: any) => r.team_id === first).primary_score,
+    ).toBe(15);
+    expect(before.awards).toEqual([]);
+    await asUser(admin);
+    await rpcResult("set_award_quota", ["program", 1, 1, 0]);
+    const preview = await rpcResult("preview_awards", ["program", 1]);
+    const args = [
+      "program",
+      1,
+      preview.version,
+      preview.settings_revision,
+      crypto.randomUUID(),
+    ];
+    const published = await rpcResult("publish_awards", args);
+    expect(await rpcResult("publish_awards", args)).toEqual(published);
+    await asUser(null, "anon");
+    const awards = await rpcResult("get_awards");
+    expect(awards).toHaveLength(1);
+    expect(awards[0]).toMatchObject({ team_id: first, rank: 1, heat: 1 });
+    expect(awards[0]).not.toHaveProperty("name");
+    expect(JSON.stringify(await rpcResult("get_scoreboard"))).not.toContain(
+      "陳宥安",
+    );
+    await asUser(admin);
+    await submit(
+      input(second, "program", "round-2", {
+        completed: 1,
+        seconds: 12,
+        weight: 300,
+      }),
+    );
+    expect(await rpcResult("get_awards")).toEqual(awards);
+  });
+  it("過期預覽、超額同名次及空名單不能公布", async () => {
+    const first = await createTeam("program", "程A001");
+    await rpcResult("set_award_quota", ["program", 1, 1, 0]);
+    const empty = await rpcResult("preview_awards", ["program", 1]);
+    await expect(
+      rpcResult("publish_awards", [
+        "program",
+        1,
+        empty.version,
+        empty.settings_revision,
+        crypto.randomUUID(),
+      ]),
+    ).rejects.toThrow("尚無");
+    await submit(
+      input(first, "program", "round-1", {
+        completed: 1,
+        seconds: 15,
+        weight: 300,
+      }),
+    );
+    const stale = await rpcResult("preview_awards", ["program", 1]);
+    const second = await createTeam("program", "程A002");
+    await submit(
+      input(second, "program", "round-1", {
+        completed: 1,
+        seconds: 15,
+        weight: 300,
+      }),
+    );
+    await expect(
+      rpcResult("publish_awards", [
+        "program",
+        1,
+        stale.version,
+        stale.settings_revision,
+        crypto.randomUUID(),
+      ]),
+    ).rejects.toThrow("已更新");
+    const tied = await rpcResult("preview_awards", ["program", 1]);
+    expect(tied.entries).toHaveLength(2);
+    await expect(
+      rpcResult("publish_awards", [
+        "program",
+        1,
+        tied.version,
+        tied.settings_revision,
+        crypto.randomUUID(),
+      ]),
+    ).rejects.toThrow("同名次");
+    expect(await rpcResult("get_awards")).toEqual([]);
+  });
+});
 async function academicWorkspace(): Promise<any> {
   return (
     await db.query<{ value: any }>(
@@ -736,12 +1068,21 @@ describe("Supabase/Postgres 整合與權限", () => {
       ...input(id),
       status: "invalid",
       reason: "掉落",
-      score_data: { secret: "do not publish" },
+      score_data: {
+        bottles: 8,
+        seconds: 45,
+        failureReason: "超過邊界",
+        secret: "do not publish",
+      },
     });
     await asUser(null, "anon");
     const s = (await db.query<{ b: any }>("select public.get_scoreboard() b"))
       .rows[0].b;
-    expect(s.attempts[0].score_data).toEqual({});
+    expect(s.attempts[0].score_data).toEqual({
+      bottles: 8,
+      seconds: 45,
+      failureReason: "超過邊界",
+    });
     expect(s.results[0].rank).toBeNull();
   });
 });

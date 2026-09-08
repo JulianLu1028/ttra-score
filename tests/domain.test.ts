@@ -10,6 +10,9 @@ import {
   heatNumbers,
   compareParticipantNumbers,
   maskParticipantName,
+  challengeStatus,
+  attemptSummary,
+  failureReasons,
   type Team,
   type Attempt,
   type CategoryId,
@@ -85,14 +88,14 @@ describe("四組規則", () => {
       qualified: true,
     });
   });
-  it("動力缺少方向時不排名，但單次可合格", () =>
+  it("動力缺少有效方向時不排名也不合格", () =>
     expect(
       leaderboard(
         [team("power")],
         [attempt("power", { bottles: 7, seconds: 30 }, "pull-1")],
         "power",
       )[0],
-    ).toMatchObject({ primary: null, qualified: true, rank: null }));
+    ).toMatchObject({ primary: null, qualified: false, rank: null }));
   it("掉落回合無效，不得選為最佳", () =>
     expect(
       teamResult(team("power"), [
@@ -138,7 +141,7 @@ describe("四組規則", () => {
       ),
     ).toBe(55);
   });
-  it("科創提前終止保留得分，同分採該回合較短時間", () => {
+  it("科創歷史提前終止保留紀錄但不列有效成績", () => {
     const as = [
       attempt(
         "creative",
@@ -154,7 +157,7 @@ describe("四組規則", () => {
     ];
     expect(teamResult(team("creative"), as)).toMatchObject({
       primary: 50,
-      secondary: 10,
+      secondary: 20,
       qualified: true,
     });
   });
@@ -192,10 +195,113 @@ describe("四組規則", () => {
     expect(normalizeScore("valid", { seconds: 12.35, weight: 100.25 })).toEqual(
       { seconds: 12.4, weight: 100.3 },
     );
-    expect(normalizeScore("invalid", { seconds: 30 })).toEqual({});
+    expect(normalizeScore("invalid", { seconds: 30 })).toEqual({ seconds: 30 });
   });
   it("未出場參賽者不應列名次", () =>
     expect(leaderboard([team("creative")], [], "creative")[0].rank).toBeNull());
+});
+describe("未完成與挑戰進度", () => {
+  it("未完成可留空或記錄超過時限的秒數，拒絕負值與非數字", () => {
+    for (const seconds of ["", 0, 61.5, undefined]) {
+      const data = {
+        bottles: 8,
+        failureReason: "超過邊界",
+        ...(seconds === undefined ? {} : { seconds }),
+      };
+      expect(validateScore("power", "invalid", data, "")).toBeNull();
+      const clean = normalizeScore("invalid", data);
+      expect(clean.bottles).toBe(8);
+      if (seconds === "" || seconds === undefined)
+        expect(clean).not.toHaveProperty("seconds");
+      else expect(clean.seconds).toBe(seconds);
+    }
+    for (const seconds of [-1, NaN, Infinity, "abc"])
+      expect(
+        validateScore(
+          "power",
+          "invalid",
+          { bottles: 8, seconds, failureReason: "超過邊界" },
+          "",
+        ),
+      ).toBeTruthy();
+  });
+  it("失敗原因依項目限制，幼兒直接記錄 0 球", () => {
+    expect(failureReasons.preschool).toEqual([]);
+    expect(failureReasons.creative).toEqual([
+      "車體掉出場地",
+      "零件脫落",
+      "翻覆",
+    ]);
+    expect(
+      validateScore(
+        "power",
+        "invalid",
+        { bottles: 8, failureReason: "翻覆" },
+        "",
+      ),
+    ).toBeTruthy();
+    expect(
+      validateScore(
+        "preschool",
+        "valid",
+        { childGoals: 0, parentGoals: 0 },
+        "",
+      ),
+    ).toBeNull();
+  });
+  it("兩拉失敗而推 8 瓶，完成全部回合仍不合格；保留方向成績", () => {
+    const attempts = [
+      attempt(
+        "power",
+        { bottles: 9, failureReason: "超過邊界" },
+        "pull-1",
+        "invalid",
+      ),
+      attempt(
+        "power",
+        { bottles: 8, failureReason: "車體鬆脫" },
+        "pull-2",
+        "invalid",
+      ),
+      attempt("power", { bottles: 8, seconds: 20 }, "push-1"),
+      attempt("power", { bottles: 7, seconds: 18 }, "push-2"),
+    ];
+    const result = teamResult(team("power"), attempts);
+    expect(result).toMatchObject({
+      primary: null,
+      qualified: false,
+      complete: true,
+    });
+    expect(result.summary).toContain("推動：8 瓶");
+    expect(challengeStatus(result, 4).label).toBe("未達合格標準");
+    expect(
+      challengeStatus(teamResult(team("power"), attempts.slice(0, 3)), 3).label,
+    ).toBe("挑戰中");
+  });
+  it("尚未出場、挑戰中與已完成未合格三者區別，摘要保留紀錄值", () => {
+    const t = team("creative");
+    const a = attempt(
+      "creative",
+      {
+        regular: 4,
+        red: "none",
+        blue: "none",
+        seconds: 51.5,
+        failureReason: "翻覆",
+      },
+      "left",
+      "invalid",
+    );
+    expect(challengeStatus(teamResult(t, []), 0).label).toBe("等待挑戰");
+    expect(challengeStatus(teamResult(t, [a]), 1).label).toBe("挑戰中");
+    expect(
+      challengeStatus(teamResult(t, [a, { ...a, slotKey: "right" }]), 2).label,
+    ).toBe("未達合格標準");
+    expect(attemptSummary(a)).toBe("未完成 · 翻覆 · 40 分（紀錄） · 51.5 秒");
+    expect(
+      attemptSummary(attempt("preschool", { childGoals: 2, parentGoals: 1 })),
+    ).toBe("進球數 3 球");
+  });
 });
 describe("CSV", () => {
   it("支援 BOM、引號、逗號、換行、前置零及全形英數正規化", () => {
@@ -351,7 +457,7 @@ describe("梯次與組別統計", () => {
   it("科創 40.0 秒保留得分，超過 40 秒拒絕", () => {
     const data = { regular: 5, red: "none", blue: "none", seconds: 40 };
     expect(validateScore("creative", "valid", data, "")).toBeNull();
-    expect(validateScore("creative", "terminated", data, "翻覆")).toBeNull();
+    expect(validateScore("creative", "terminated", data, "翻覆")).toBeTruthy();
     expect(
       validateScore("creative", "valid", { ...data, seconds: 40.01 }, ""),
     ).toBeTruthy();
