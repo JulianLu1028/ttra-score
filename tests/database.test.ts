@@ -91,6 +91,7 @@ beforeAll(async () => {
     "005_heat_numbering.sql",
     "006_rank_by_heat.sql",
     "007_checkin_time_and_public_names.sql",
+    "008_academic_safe_updates.sql",
   ])
     await db.exec(
       readFileSync(
@@ -151,6 +152,23 @@ async function academicSave(
   ).rows[0].value;
 }
 describe("學科私有登分與公開快照資料庫", () => {
+  it("匯入、登分及公布的版本更新都指定單例資料列", async () => {
+    // PGlite does not load production's safe-update module, so check the
+    // installed routines as well as the functional transaction tests below.
+    const { rows } = await db.query<{ definition: string }>(
+      "select pg_get_functiondef(p.oid) definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private' and p.proname in ('import_academic','save_academic_score','publish_academic')",
+    );
+    expect(rows).toHaveLength(3);
+    const updates = rows.flatMap(
+      ({ definition }) =>
+        definition.match(
+          /update\s+(?:private\.academic_state|public\.academic_publication)\s+set\b[^;]*;/gi,
+        ) ?? [],
+    );
+    expect(updates).toHaveLength(4);
+    for (const update of updates)
+      expect(update).toMatch(/\bwhere\s+singleton\s*=\s*true\s*;/i);
+  });
   it("只有管理員及獲授權學科評審能讀寫草稿", async () => {
     const w = await academicSetup();
     for (const id of [judge, checkin, outsider]) {
