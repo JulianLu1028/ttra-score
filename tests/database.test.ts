@@ -131,6 +131,22 @@ async function rpcResult(name: string, args: unknown[] = []) {
   ).rows[0].value;
 }
 describe("挑戰賽新版規則、飲料與公告", () => {
+  it("正式回滾驗證腳本可執行且不保留測試資料", async () => {
+    await db.exec("reset role");
+    await db.exec(
+      readFileSync(
+        new URL("../supabase/verify_challenge_upgrade.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    expect((await db.query("select * from public.teams")).rows).toHaveLength(0);
+    expect(
+      (await db.query("select * from private.drink_claims")).rows,
+    ).toHaveLength(0);
+    expect(
+      (await db.query("select * from private.award_publications")).rows,
+    ).toHaveLength(0);
+  });
   it("全賽事名次可一次公告，重送不重複且不同梯次同時生效", async () => {
     const one = await createTeam("program", "程A001"),
       two = await createTeam("creative", "機B001", 2);
