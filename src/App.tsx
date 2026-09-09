@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ArrowUpRight,
   Radio,
@@ -90,13 +97,14 @@ const rules: Record<CategoryId, string> = {
   creative:
     "每次限時 40 秒，到時保留得分。普通瓶 10 分，特殊瓶正確 20 分、錯誤 5 分。取最高單次，同分取耗時較短。50 分以上合格。",
 };
-function checkinTime(value: string | null) {
+export function checkinTime(value: string | null, compact = false) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString("zh-TW", {
     hour: "2-digit",
     minute: "2-digit",
+    ...(compact ? { hourCycle: "h23" as const, timeZone: "Asia/Taipei" } : {}),
   });
 }
 export function ParticipantName({
@@ -111,6 +119,20 @@ export function ParticipantName({
       {award && <span className="award-badge">{awardLabel(award)}</span>}
       <strong>{name}</strong>
     </span>
+  );
+}
+
+function ResultLayout({
+  publicView,
+  children,
+}: {
+  publicView: boolean;
+  children: ReactNode;
+}) {
+  return publicView ? (
+    <div className="public-result">{children}</div>
+  ) : (
+    <>{children}</>
   );
 }
 
@@ -1024,11 +1046,14 @@ export default function App() {
                                       route === "public"
                                         ? maskParticipantName(r.team.name)
                                         : r.team.name,
-                                    arrivedAt = checkinTime(r.team.checkedInAt);
+                                    arrivedAt = checkinTime(
+                                      r.team.checkedInAt,
+                                      route === "public",
+                                    );
                                   return (
                                     <div
                                       id={`participant-${r.team.id}`}
-                                      className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}`}
+                                      className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}${route === "public" && awards.some((a) => a.category_id === group) ? " has-award-column" : ""}`}
                                       key={r.team.id}
                                     >
                                       <button
@@ -1086,55 +1111,59 @@ export default function App() {
                                           }
                                         />
                                       )}
-                                      <div className="result-status">
-                                        <span
-                                          className={
-                                            "status-badge " + state.tone
-                                          }
-                                        >
-                                          {state.label}
-                                        </span>
-                                        <small className="round-progress">
-                                          {attemptCount}/
-                                          {slotOptions(group).length} 回合
-                                        </small>
-                                      </div>
-                                      <div className="result-numbers">
-                                        {group === "preschool" &&
-                                          route === "public" && (
-                                            <span className="goal-label">
-                                              進球數
-                                            </span>
-                                          )}
-                                        <strong className="score-number">
-                                          {r.primary === null
-                                            ? "—"
-                                            : group === "program"
-                                              ? r.primary.toFixed(1)
-                                              : r.primary}
-                                          <small>
-                                            {group === "preschool"
-                                              ? "球"
-                                              : group === "power"
-                                                ? "瓶"
-                                                : group === "program"
-                                                  ? "秒"
-                                                  : "分"}
+                                      <ResultLayout
+                                        publicView={route === "public"}
+                                      >
+                                        <div className="result-status">
+                                          <span
+                                            className={
+                                              "status-badge " + state.tone
+                                            }
+                                          >
+                                            {state.label}
+                                          </span>
+                                          <small className="round-progress">
+                                            {attemptCount}/
+                                            {slotOptions(group).length} 回合
                                           </small>
-                                        </strong>
-                                        {group === "power" &&
-                                          r.primary === null && (
-                                            <small className="direction-summary">
-                                              {r.summary}
+                                        </div>
+                                        <div className="result-numbers">
+                                          {group === "preschool" &&
+                                            route === "public" && (
+                                              <span className="goal-label">
+                                                進球數
+                                              </span>
+                                            )}
+                                          <strong className="score-number">
+                                            {r.primary === null
+                                              ? "—"
+                                              : group === "program"
+                                                ? r.primary.toFixed(1)
+                                                : r.primary}
+                                            <small>
+                                              {group === "preschool"
+                                                ? "球"
+                                                : group === "power"
+                                                  ? "瓶"
+                                                  : group === "program"
+                                                    ? "秒"
+                                                    : "分"}
+                                            </small>
+                                          </strong>
+                                          {group === "power" &&
+                                            r.primary === null && (
+                                              <small className="direction-summary">
+                                                {r.summary}
+                                              </small>
+                                            )}
+                                          {r.secondary !== null && (
+                                            <small>
+                                              {r.secondary.toFixed(1)}{" "}
+                                              {group === "program" ? "g" : "秒"}
                                             </small>
                                           )}
-                                        {r.secondary !== null && (
-                                          <small>
-                                            {r.secondary.toFixed(1)}{" "}
-                                            {group === "program" ? "g" : "秒"}
-                                          </small>
-                                        )}
-                                      </div>
+                                        </div>
+                                      </ResultLayout>
                                       {route === "staff" ? (
                                         canScore && (
                                           <Button

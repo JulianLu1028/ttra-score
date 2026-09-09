@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import App, { Login, ParticipantName } from "../src/App";
+import App, { Login, ParticipantName, checkinTime } from "../src/App";
 import { ScoreForm } from "../src/ScoreForm";
 import { ImportPanel } from "../src/ImportPanel";
 import { categories, type Team } from "../src/domain";
@@ -15,6 +15,12 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 describe("非瀏覽器渲染檢查", () => {
+  it("家長報到時間使用台灣24小時制，缺少時間不補造", () => {
+    expect(checkinTime("2026-09-09T07:01:00Z", true)).toBe("15:01");
+    expect(checkinTime("2026-09-08T16:00:00Z", true)).toBe("00:00");
+    expect(checkinTime(null, true)).toBe("");
+    expect(checkinTime("invalid", true)).toBe("");
+  });
   it("裁判計分按鈕依回合進度顯示操作", () => {
     expect(scoreActionLabel(false, 0, 2)).toBe("未報到");
     expect(scoreActionLabel(true, 0, 2)).toBe("計分");
@@ -111,6 +117,7 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toContain("名次");
     expect(html).toContain("名單依參賽編號排列");
     expect(html).toContain("機A001");
+    expect(html).toContain('class="public-result"><div class="result-status"');
     expect(html).toMatch(
       /<small class="participant-meta"><span class="participant-number">[^<]+<\/span><time class="checkin-time"/,
     );
@@ -128,6 +135,7 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).toContain("挑戰賽工作台");
     expect(html).toContain("本組參賽人數");
     expect(html).toContain('class="staff-tabs"');
+    expect(html).not.toContain('class="public-result"');
     expect(html).toContain("裁判計分");
     expect(html).toContain("寶礦力水得足球世界盃");
     expect(html).toContain('aria-label="第 1 梯名單"');
