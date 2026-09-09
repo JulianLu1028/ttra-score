@@ -952,11 +952,18 @@ export default function App() {
                     </div>
                     <p className="rules-note">{rules[group]}</p>
                     <p className="rules-note">
-                      {route === "public"
-                        ? "依梯次分區，名單依參賽編號排列。可左右滑動查看完整成績。"
-                        : group === "preschool"
-                          ? "依梯次分區，本組不排名。"
-                          : "依梯次分區，各梯次單獨計算名次。"}
+                      {route === "public" ? (
+                        <>
+                          依梯次分區，名單依參賽編號排列。
+                          <span className="parent-scroll-hint">
+                            可左右滑動查看完整成績。
+                          </span>
+                        </>
+                      ) : group === "preschool" ? (
+                        "依梯次分區，本組不排名。"
+                      ) : (
+                        "依梯次分區，各梯次單獨計算名次。"
+                      )}
                     </p>
                     {loading ? (
                       <div className="empty-state">正在取得成績…</div>
@@ -1033,7 +1040,7 @@ export default function App() {
                                   return (
                                     <div
                                       id={`participant-${r.team.id}`}
-                                      className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}`}
+                                      className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}${route === "public" && awards.some((a) => a.category_id === group) ? " has-award-column" : ""}`}
                                       key={r.team.id}
                                     >
                                       <button

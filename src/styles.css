@@ -1229,6 +1229,76 @@ footer {
   max-width: none;
   white-space: nowrap;
 }
+/* Restore the desktop layout without changing the pending mobile design. */
+@media (min-width: 801px) {
+  .public-page .parent-scroll-hint {
+    display: none;
+  }
+  .public-page .heat-section {
+    width: auto;
+    min-width: 0;
+  }
+  .public-page .score-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 19rem;
+    gap: 16px;
+    padding: 18px 24px;
+    min-height: 0;
+    white-space: normal;
+  }
+  .public-page .score-row .team-cell {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+  }
+  .public-page .participant-identity {
+    width: 100%;
+  }
+  .public-page .has-award-column .participant-identity {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+  .public-page .has-award-column .participant-identity > strong {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .public-page .has-award-column .participant-identity .award-badge {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .public-page .has-award-column .participant-meta {
+    padding-left: calc(4.5rem + 10px);
+  }
+  .public-page .team-cell .participant-meta {
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin-top: 6px;
+  }
+  .public-page .public-result {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+  .public-page .score-row .result-status {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .public-page .score-row .result-numbers {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    text-align: right;
+  }
+  .public-page .score-row .score-number {
+    font-size: 1.875rem;
+  }
+  .public-page .score-row .direction-summary {
+    max-width: 170px;
+    white-space: normal;
+  }
+}
 @media (max-width: 800px) {
   .public-page .score-row:not(:last-child) {
     border-bottom: 2px solid #94a89b;
