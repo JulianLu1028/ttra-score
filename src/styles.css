@@ -1125,16 +1125,11 @@ footer {
 }
 .public-page .score-list {
   max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-}
-.public-page .score-list:focus-visible {
-  outline: 2px solid #164f42;
-  outline-offset: -2px;
+  min-width: 0;
 }
 .public-page .heat-section {
-  width: max-content;
-  min-width: 100%;
+  width: auto;
+  min-width: 0;
 }
 .public-page .score-row {
   display: flex;
@@ -1153,6 +1148,7 @@ footer {
 }
 .public-page .participant-identity {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   width: auto;
@@ -1229,11 +1225,8 @@ footer {
   max-width: none;
   white-space: nowrap;
 }
-/* Restore the desktop layout without changing the pending mobile design. */
+/* Desktop keeps identity on the left and the result summary on the right. */
 @media (min-width: 801px) {
-  .public-page .parent-scroll-hint {
-    display: none;
-  }
   .public-page .heat-section {
     width: auto;
     min-width: 0;
@@ -1253,21 +1246,6 @@ footer {
   }
   .public-page .participant-identity {
     width: 100%;
-  }
-  .public-page .has-award-column .participant-identity {
-    display: grid;
-    grid-template-columns: 4.5rem minmax(0, 1fr);
-  }
-  .public-page .has-award-column .participant-identity > strong {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  .public-page .has-award-column .participant-identity .award-badge {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .public-page .has-award-column .participant-meta {
-    padding-left: calc(4.5rem + 10px);
   }
   .public-page .team-cell .participant-meta {
     flex-wrap: wrap;
@@ -1300,6 +1278,79 @@ footer {
   }
 }
 @media (max-width: 800px) {
+  .public-page .score-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 7.375rem);
+    align-items: start;
+    gap: 12px;
+    padding: 16px 14px;
+    min-height: 0;
+    white-space: normal;
+  }
+  .public-page .score-row .team-cell {
+    display: block;
+    min-width: 0;
+    min-height: 44px;
+  }
+  .public-page .participant-identity {
+    gap: 6px;
+  }
+  .public-page .team-cell .participant-identity > strong {
+    font-size: 1.375rem;
+    line-height: 1.4;
+  }
+  .public-page .participant-identity .award-badge {
+    padding: 4px 7px;
+  }
+  .public-page .team-cell .participant-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .public-page .participant-number {
+    overflow-wrap: anywhere;
+  }
+  .public-page .checkin-time {
+    white-space: normal;
+  }
+  .public-page .public-result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+    min-width: 0;
+  }
+  .public-page .score-row .result-numbers {
+    order: -1;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .public-page .score-row .score-number {
+    font-size: 1.875rem;
+    line-height: 1.15;
+    max-width: 100%;
+  }
+  .public-page .score-row .result-status {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .public-page .score-row .status-badge {
+    padding: 4px 7px;
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+  .public-page .score-row .direction-summary {
+    max-width: 100%;
+    white-space: normal;
+  }
   .public-page .score-row:not(:last-child) {
     border-bottom: 2px solid #94a89b;
   }

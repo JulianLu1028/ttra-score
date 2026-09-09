@@ -67,7 +67,7 @@ describe("非瀏覽器渲染檢查", () => {
     expect(render(false, false, true)).toContain('disabled=""');
     expect(render(false, false, false, true)).toContain('disabled=""');
   });
-  it("已公布名次與佳作放在姓名左側，移除官方字樣", () => {
+  it("已公布名次與佳作放在姓名右側，未得獎者不留空位", () => {
     for (const [award, label] of [
       [{ rank: 1, award_type: "rank" }, "第 1 名"],
       [{ rank: null, award_type: "merit" }, "佳作"],
@@ -76,7 +76,7 @@ describe("非瀏覽器渲染檢查", () => {
         <ParticipantName name="王o明" award={award} />,
       );
       expect(html).toContain(
-        `class="award-badge">${label}</span><strong>王o明</strong>`,
+        `<strong>王o明</strong><span class="award-badge">${label}</span>`,
       );
       expect(html).not.toContain("官方");
     }
@@ -120,7 +120,8 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toContain("我的關注");
     expect(html).not.toContain("取消關注");
     expect(html).not.toContain("has-award-column");
-    expect(html).toContain('aria-label="參賽者成績，可左右滑動"');
+    expect(html).toContain('aria-label="參賽者成績"');
+    expect(html).not.toContain("可左右滑動");
     expect(html).toContain('class="public-result"><div class="result-status"');
     expect(html).toMatch(
       /<small class="participant-meta"><span class="participant-number">[^<]+<\/span><time class="checkin-time"/,
