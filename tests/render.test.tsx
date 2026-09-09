@@ -61,6 +61,9 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toContain("名次");
     expect(html).toContain("名單依參賽編號排列");
     expect(html).toContain("機A001");
+    expect(html).toMatch(
+      /<small class="participant-meta"><span class="participant-number">[^<]+<\/span><time class="checkin-time"/,
+    );
     expect(html).toContain("報到");
     expect(html).toMatch(/[\u4e00-\u9fff]o[\u4e00-\u9fff]/);
     expect(html).not.toContain("學校");

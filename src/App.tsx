@@ -1054,6 +1054,13 @@ export default function App() {
                                                 : undefined
                                             }
                                           />
+                                        </span>
+                                        <small className="participant-meta">
+                                          <span className="participant-number">
+                                            {r.team.number}
+                                          </span>
+                                          {route === "staff" &&
+                                            ` · 第 ${r.team.heat} 梯`}
                                           {route === "public" && arrivedAt && (
                                             <time
                                               className="checkin-time"
@@ -1064,12 +1071,6 @@ export default function App() {
                                               報到 {arrivedAt}
                                             </time>
                                           )}
-                                        </span>
-                                        <small>
-                                          <span className="participant-number">
-                                            {r.team.number}
-                                          </span>{" "}
-                                          · 第 {r.team.heat} 梯
                                         </small>
                                       </button>
                                       {route === "staff" && (

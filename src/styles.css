@@ -1123,7 +1123,71 @@ footer {
   font-size: 0.875rem;
   font-weight: 750;
 }
+.public-page .score-row {
+  gap: 20px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+.public-page .participant-identity {
+  align-items: center;
+  gap: 12px;
+}
+.public-page .team-cell .participant-identity > strong {
+  font-size: 1.625rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: #183d33;
+}
+.public-page .participant-identity .award-badge {
+  min-width: 4.25rem;
+  text-align: center;
+  padding: 5px 8px;
+  line-height: 1.4;
+}
+.public-page .team-cell .participant-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin-top: 10px;
+  line-height: 1.5;
+}
+.public-page .participant-meta .checkin-time {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #607368;
+}
 @media (max-width: 700px) {
+  .public-page .score-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "identity favorite" "status score";
+    gap: 16px 12px;
+  }
+  .public-page .score-row .team-cell {
+    grid-area: identity;
+  }
+  .public-page .score-row > button[data-slot="button"] {
+    grid-area: favorite;
+    align-self: start;
+    height: 44px;
+    width: 44px;
+  }
+  .public-page .score-row .result-status {
+    grid-area: status;
+    margin-left: 0;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .public-page .score-row .result-numbers {
+    grid-area: score;
+    margin-left: 0;
+    justify-self: end;
+  }
+  .public-page .team-cell .participant-identity > strong {
+    font-size: 1.5rem;
+  }
   .staff-page .score-row {
     flex-wrap: wrap;
     gap: 12px;
