@@ -1,4 +1,5 @@
 import React from "react";
+import { readFileSync } from "node:fs";
 import { renderToString } from "react-dom/server";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import App, { Login, ParticipantName, checkinTime } from "../src/App";
@@ -289,6 +290,28 @@ it("學科裁判入口與家長入口使用相同的獨立配色", () => {
   );
   expect(html).toContain("機581115100401");
   expect(html).not.toContain("E101");
+});
+it("學科裁判名單的登分操作位於參賽編號左側", () => {
+  // SSR starts in the loading state; check the async list's JSX order directly.
+  const source = readFileSync(
+    new URL("../src/AcademicApp.tsx", import.meta.url),
+    "utf8",
+  );
+  const table = source.match(/<Table>[\s\S]*?<\/Table>/)?.[0] ?? "";
+  const headers = [...table.matchAll(/<TableHead>([\s\S]*?)<\/TableHead>/g)];
+  expect(headers.map((header) => header[1])).toEqual([
+    "操作",
+    "參賽編號",
+    "姓名",
+    "目前分數（內部）",
+    "公開分數",
+  ]);
+  const cells = [...table.matchAll(/<TableCell>([\s\S]*?)<\/TableCell>/g)];
+  expect(cells[0][1]).toContain("<Button");
+  expect(cells[0][1]).toContain('{c.score === null ? "登分" : "修改"}');
+  expect(cells[0][1]).toContain("disabled={busy || !online}");
+  expect(cells[0][1]).toContain("setSelected(c)");
+  expect(cells[1][1]).toBe("{c.number}");
 });
 it("檢定等級切換按鈕標示選取狀態且可保留未辨識舊名單", () => {
   const html = renderToString(

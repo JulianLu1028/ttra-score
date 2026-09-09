@@ -507,30 +507,16 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>操作</TableHead>
                       <TableHead>參賽編號</TableHead>
                       <TableHead>姓名</TableHead>
                       <TableHead>目前分數（內部）</TableHead>
                       <TableHead>公開分數</TableHead>
-                      <TableHead>操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {levelCandidates.filter(matches).map((c) => (
                       <TableRow key={c.id}>
-                        <TableCell>{c.number}</TableCell>
-                        <TableCell>{c.name}</TableCell>
-                        <TableCell>
-                          {c.score === null ? "尚未登錄" : c.score + " 分"}
-                          {c.score !== c.published_score &&
-                            c.score !== null && (
-                              <span className="academic-draft">待公布</span>
-                            )}
-                        </TableCell>
-                        <TableCell>
-                          {c.published_score === null
-                            ? "尚未公布"
-                            : c.published_score + " 分"}
-                        </TableCell>
                         <TableCell>
                           <Button
                             variant="outline"
@@ -546,6 +532,20 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                           >
                             {c.score === null ? "登分" : "修改"}
                           </Button>
+                        </TableCell>
+                        <TableCell>{c.number}</TableCell>
+                        <TableCell>{c.name}</TableCell>
+                        <TableCell>
+                          {c.score === null ? "尚未登錄" : c.score + " 分"}
+                          {c.score !== c.published_score &&
+                            c.score !== null && (
+                              <span className="academic-draft">待公布</span>
+                            )}
+                        </TableCell>
+                        <TableCell>
+                          {c.published_score === null
+                            ? "尚未公布"
+                            : c.published_score + " 分"}
                         </TableCell>
                       </TableRow>
                     ))}
