@@ -23,7 +23,6 @@ import {
   Upload,
   ShieldCheck,
   WifiOff,
-  Star,
 } from "./icons";
 import type { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
@@ -167,14 +166,6 @@ export default function App() {
       isDemoMode ? (readDemoChallenge().audit ?? []) : [],
     ),
     [checkinBusy, setCheckinBusy] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("ttra-favorites") || "[]");
-    } catch {
-      return [];
-    }
-  });
-  const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [awards, setAwards] = useState<PublishedAward[]>([]);
   const drinks = useDrinkClaims(
     route === "staff" && staff && session && !authLoading
@@ -447,7 +438,6 @@ export default function App() {
   }, [teams, attempts, serverResults, group]);
   const visible = results.filter(
     (r) =>
-      (route === "staff" || !onlyFavorites || favorites.includes(r.team.id)) &&
       (heatFilter === "all" || r.team.heat === Number(heatFilter)) &&
       (route !== "staff" ||
         (r.team.number + " " + r.team.name)
@@ -547,17 +537,6 @@ export default function App() {
         })),
       ]);
     else await refresh();
-  }
-  function star(id: string) {
-    const next = favorites.includes(id)
-      ? favorites.filter((x) => x !== id)
-      : [...favorites, id];
-    setFavorites(next);
-    try {
-      localStorage.setItem("ttra-favorites", JSON.stringify(next));
-    } catch {
-      /* Preferences are optional. */
-    }
   }
   function selectCategory(categoryId: CategoryId) {
     returnAnchor.current = null;
@@ -937,15 +916,7 @@ export default function App() {
                           ))}
                         </NativeSelect>
                       </label>
-                      {route === "public" ? (
-                        <Button
-                          variant={onlyFavorites ? "secondary" : "outline"}
-                          onClick={() => setOnlyFavorites(!onlyFavorites)}
-                        >
-                          <Star size={14} />
-                          我的關注
-                        </Button>
-                      ) : (
+                      {route === "staff" && (
                         <Button
                           variant="outline"
                           onClick={() =>
@@ -982,7 +953,7 @@ export default function App() {
                     <p className="rules-note">{rules[group]}</p>
                     <p className="rules-note">
                       {route === "public"
-                        ? "依梯次分區，名單依參賽編號排列。"
+                        ? "依梯次分區，名單依參賽編號排列。可左右滑動查看完整成績。"
                         : group === "preschool"
                           ? "依梯次分區，本組不排名。"
                           : "依梯次分區，各梯次單獨計算名次。"}
@@ -1003,7 +974,16 @@ export default function App() {
                         </p>
                       </div>
                     ) : (
-                      <div className="score-list">
+                      <div
+                        className="score-list"
+                        role={route === "public" ? "region" : undefined}
+                        aria-label={
+                          route === "public"
+                            ? "參賽者成績，可左右滑動"
+                            : undefined
+                        }
+                        tabIndex={route === "public" ? 0 : undefined}
+                      >
                         {heatNumbers(group)
                           .filter(
                             (heat) =>
@@ -1053,7 +1033,7 @@ export default function App() {
                                   return (
                                     <div
                                       id={`participant-${r.team.id}`}
-                                      className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}${route === "public" && awards.some((a) => a.category_id === group) ? " has-award-column" : ""}`}
+                                      className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}`}
                                       key={r.team.id}
                                     >
                                       <button
@@ -1164,45 +1144,23 @@ export default function App() {
                                           )}
                                         </div>
                                       </ResultLayout>
-                                      {route === "staff" ? (
-                                        canScore && (
-                                          <Button
-                                            className="staff-score-action"
-                                            disabled={
-                                              !inScope(r.team) ||
-                                              r.team.checkinStatus !==
-                                                "checked_in"
-                                            }
-                                            onClick={() => openScore(r.team)}
-                                          >
-                                            {scoreActionLabel(
-                                              r.team.checkinStatus ===
-                                                "checked_in",
-                                              attemptCount,
-                                              slotOptions(group).length,
-                                            )}
-                                            <ChevronRight size={14} />
-                                          </Button>
-                                        )
-                                      ) : (
+                                      {route === "staff" && canScore && (
                                         <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          aria-label={
-                                            (favorites.includes(r.team.id)
-                                              ? "取消關注"
-                                              : "關注") + displayName
+                                          className="staff-score-action"
+                                          disabled={
+                                            !inScope(r.team) ||
+                                            r.team.checkinStatus !==
+                                              "checked_in"
                                           }
-                                          onClick={() => star(r.team.id)}
+                                          onClick={() => openScore(r.team)}
                                         >
-                                          <Star
-                                            size={17}
-                                            fill={
-                                              favorites.includes(r.team.id)
-                                                ? "#adc563"
-                                                : "none"
-                                            }
-                                          />
+                                          {scoreActionLabel(
+                                            r.team.checkinStatus ===
+                                              "checked_in",
+                                            attemptCount,
+                                            slotOptions(group).length,
+                                          )}
+                                          <ChevronRight size={14} />
                                         </Button>
                                       )}
                                       {route === "staff" && (

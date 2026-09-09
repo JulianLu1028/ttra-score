@@ -117,6 +117,10 @@ describe("非瀏覽器渲染檢查", () => {
     expect(html).not.toContain("名次");
     expect(html).toContain("名單依參賽編號排列");
     expect(html).toContain("機A001");
+    expect(html).not.toContain("我的關注");
+    expect(html).not.toContain("取消關注");
+    expect(html).not.toContain("has-award-column");
+    expect(html).toContain('aria-label="參賽者成績，可左右滑動"');
     expect(html).toContain('class="public-result"><div class="result-status"');
     expect(html).toMatch(
       /<small class="participant-meta"><span class="participant-number">[^<]+<\/span><time class="checkin-time"/,

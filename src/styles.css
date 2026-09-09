@@ -1123,36 +1123,39 @@ footer {
   font-size: 0.875rem;
   font-weight: 750;
 }
+.public-page .score-list {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.public-page .score-list:focus-visible {
+  outline: 2px solid #164f42;
+  outline-offset: -2px;
+}
+.public-page .heat-section {
+  width: max-content;
+  min-width: 100%;
+}
 .public-page .score-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 19rem 44px;
-  grid-template-areas: "identity results favorite";
+  display: flex;
+  flex-wrap: nowrap;
   gap: 16px;
-  padding: 18px 24px;
+  padding: 12px 16px;
+  min-height: 68px;
+  white-space: nowrap;
 }
 .public-page .score-row .team-cell {
-  grid-area: identity;
-  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+  min-height: 44px;
 }
 .public-page .participant-identity {
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-}
-.public-page .has-award-column .participant-identity {
-  display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr);
-}
-.public-page .has-award-column .participant-identity > strong {
-  grid-column: 2;
-  grid-row: 1;
-}
-.public-page .has-award-column .participant-identity .award-badge {
-  grid-column: 1;
-  grid-row: 1;
-}
-.public-page .has-award-column .participant-meta {
-  padding-left: calc(4.5rem + 10px);
+  width: auto;
 }
 .public-page .participant-name-line {
   display: block;
@@ -1172,10 +1175,10 @@ footer {
 }
 .public-page .team-cell .participant-meta {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  margin-top: 6px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
   line-height: 1.5;
 }
 .public-page .participant-meta .checkin-time {
@@ -1188,17 +1191,20 @@ footer {
   font-weight: 650;
 }
 .public-page .public-result {
-  grid-area: results;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  column-gap: 16px;
+  gap: 16px;
 }
 .public-page .score-row .result-status {
   margin: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+}
+.public-page .score-row .status-badge {
+  font-size: 0.875rem;
 }
 .public-page .score-row .round-progress {
   font-size: 0.875rem;
@@ -1207,65 +1213,25 @@ footer {
 .public-page .score-row .result-numbers {
   margin: 0;
   min-width: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
 }
 .public-page .score-row .score-number {
   min-width: 0;
-  font-size: 1.875rem;
+  font-size: 1.5rem;
   line-height: 1.25;
 }
 .public-page .score-row .result-numbers small {
   font-size: 0.875rem;
 }
-.public-page .score-row > button[data-slot="button"] {
-  grid-area: favorite;
-  width: 44px;
-  height: 44px;
+.public-page .score-row .direction-summary {
+  max-width: none;
+  white-space: nowrap;
 }
 @media (max-width: 800px) {
-  .public-page .score-row {
-    grid-template-columns: minmax(0, 1fr) 44px;
-    grid-template-areas: "identity favorite" "results results";
-    gap: 8px;
-    padding: 12px 16px;
-  }
-  .public-page .score-row > button[data-slot="button"] {
-    align-self: start;
-  }
   .public-page .score-row:not(:last-child) {
     border-bottom: 2px solid #94a89b;
-  }
-  .public-page .public-result {
-    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-    gap: 16px;
-    border: 0;
-    padding: 0;
-  }
-  .public-page .score-row .result-status {
-    gap: 2px;
-  }
-  .public-page .score-row .result-numbers {
-    text-align: left;
-    gap: 2px;
-  }
-  .public-page .score-row .score-number {
-    text-align: left;
-    font-size: 1.5rem;
-  }
-  .public-page .score-row .status-badge {
-    font-size: 0.875rem;
-  }
-  .public-page .team-cell .participant-meta {
-    margin-top: 4px;
-  }
-  .public-page .has-award-column .participant-identity {
-    grid-template-columns: 3.75rem minmax(0, 1fr);
-    gap: 8px;
-  }
-  .public-page .has-award-column .participant-meta {
-    padding-left: 0;
-  }
-  .public-page .participant-identity .award-badge {
-    padding: 4px 3px;
   }
 }
 @media (max-width: 700px) {
