@@ -419,17 +419,6 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
           </section>
         ) : staffView ? (
           <>
-            <AcademicLevelTabs
-              value={level}
-              onChange={changeLevel}
-              includeUnassigned={unknownCount > 0}
-            />
-            {unknownCount > 0 && (
-              <p className="notice">
-                有 {unknownCount}{" "}
-                位既有參賽者的編號不在指定範圍，已保留於「待確認等級」，沒有更改編號或分數。
-              </p>
-            )}
             <section className="academic-summary">
               <div>
                 <span>{academicLevelName(level)}參賽者</span>
@@ -457,17 +446,11 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
             <section className="panel publication-panel">
               <div>
                 <h2>手動統一公布</h2>
-                <p>公布全部等級已登錄的成績，不受目前等級或搜尋篩選影響。</p>
-                <p>
-                  預計 10/04（日）10:00
-                  公布，時間到不會自動發布。可等批改完成後再操作。
-                </p>
                 <p className="muted">
                   {workspace?.publishedAt
                     ? "最近公布：" +
                       new Date(workspace.publishedAt).toLocaleString("zh-TW")
                     : "尚未公布任何學科成績"}
-                  。新登分及更正都需要再次公布。
                 </p>
               </div>
               <Button
@@ -485,6 +468,17 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                 公布全部學科成績
               </Button>
             </section>
+            <AcademicLevelTabs
+              value={level}
+              onChange={changeLevel}
+              includeUnassigned={unknownCount > 0}
+            />
+            {unknownCount > 0 && (
+              <p className="notice">
+                有 {unknownCount}{" "}
+                位既有參賽者的編號不在指定範圍，已保留於「待確認等級」，沒有更改編號或分數。
+              </p>
+            )}
             <section className="panel">
               <div className="panel-heading">
                 <h2>{academicLevelName(level)} · 學科登分名單</h2>

@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import App, { Login } from "../src/App";
+import App, { Login, ParticipantName } from "../src/App";
 import { ScoreForm } from "../src/ScoreForm";
 import { ImportPanel } from "../src/ImportPanel";
 import { categories, type Team } from "../src/domain";
@@ -11,6 +11,23 @@ import { AwardPanel } from "../src/ChallengeStaffTools";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("非瀏覽器渲染檢查", () => {
+  it("已公布名次與佳作放在姓名左側，移除官方字樣", () => {
+    for (const [award, label] of [
+      [{ rank: 1, award_type: "rank" }, "第 1 名"],
+      [{ rank: null, award_type: "merit" }, "佳作"],
+    ] as const) {
+      const html = renderToString(
+        <ParticipantName name="王o明" award={award} />,
+      );
+      expect(html).toContain(
+        `class="award-badge">${label}</span><strong>王o明</strong>`,
+      );
+      expect(html).not.toContain("官方");
+    }
+    const unpublished = renderToString(<ParticipantName name="王o明" />);
+    expect(unpublished).not.toContain("award-badge");
+    expect(unpublished).toContain("王o明");
+  });
   it("公告表單分開顯示兩種名額，保留預覽及統一公告", () => {
     const html = renderToString(
       <AwardPanel
@@ -194,7 +211,16 @@ it("學科裁判入口與家長入口使用相同的獨立配色", () => {
   expect(html).toContain("學科成績工作台");
   expect(html).toContain("最近 10 筆");
   expect(html).not.toContain("最近 200 筆");
-  expect(html).toContain("公布全部等級已登錄的成績");
+  expect(html).not.toContain("公布全部等級已登錄的成績");
+  expect(html).not.toContain("可等批改完成後再操作");
+  expect(html).not.toContain("新登分及更正都需要再次公布");
+  expect(html).toContain("公布全部學科成績");
+  expect(html.indexOf('class="panel publication-panel"')).toBeLessThan(
+    html.indexOf('aria-label="檢定等級"'),
+  );
+  expect(html.indexOf('aria-label="檢定等級"')).toBeLessThan(
+    html.indexOf("學科登分名單"),
+  );
   expect(html).toContain("機581115100401");
   expect(html).not.toContain("E101");
 });

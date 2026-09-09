@@ -244,6 +244,20 @@ a:focus-visible {
   flex-wrap: wrap;
   gap: 5px 10px;
 }
+.participant-identity {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 100%;
+}
+.participant-identity > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.participant-identity .award-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .checkin-time {
   color: #236a58;
   font-size: 12px;

@@ -97,6 +97,21 @@ function checkinTime(value: string | null) {
     minute: "2-digit",
   });
 }
+export function ParticipantName({
+  name,
+  award,
+}: {
+  name: string;
+  award?: Pick<PublishedAward, "rank" | "award_type">;
+}) {
+  return (
+    <span className="participant-identity">
+      {award && <span className="award-badge">{awardLabel(award)}</span>}
+      <strong>{name}</strong>
+    </span>
+  );
+}
+
 export default function App() {
   const [route, setRoute] = useState(
     location.hash.endsWith("/staff") ? "staff" : "public",
@@ -1028,7 +1043,17 @@ export default function App() {
                                         onClick={() => setDetail(r.team)}
                                       >
                                         <span className="participant-name-line">
-                                          <strong>{displayName}</strong>
+                                          <ParticipantName
+                                            name={displayName}
+                                            award={
+                                              route === "public"
+                                                ? awards.find(
+                                                    (a) =>
+                                                      a.team_id === r.team.id,
+                                                  )
+                                                : undefined
+                                            }
+                                          />
                                           {route === "public" && arrivedAt && (
                                             <time
                                               className="checkin-time"
@@ -1089,20 +1114,6 @@ export default function App() {
                                           {attemptCount}/
                                           {slotOptions(group).length} 回合
                                         </small>
-                                        {route === "public" &&
-                                          awards.find(
-                                            (a) => a.team_id === r.team.id,
-                                          ) && (
-                                            <span className="award-badge">
-                                              官方
-                                              {awardLabel(
-                                                awards.find(
-                                                  (a) =>
-                                                    a.team_id === r.team.id,
-                                                )!,
-                                              )}
-                                            </span>
-                                          )}
                                       </div>
                                       <div className="result-numbers">
                                         {group === "preschool" &&
