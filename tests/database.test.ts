@@ -94,6 +94,7 @@ beforeAll(async () => {
     "008_academic_safe_updates.sql",
     "009_challenge_attempt_rules.sql",
     "010_rewards_and_award_publication.sql",
+    "011_rank_and_merit_awards.sql",
   ])
     await db.exec(
       readFileSync(
@@ -108,7 +109,7 @@ beforeAll(async () => {
 }, 30000);
 beforeEach(async () => {
   await db.exec(
-    "reset role; update private.award_settings set quota=null,revision=0,publication_id=null where true; delete from private.award_publications where true; truncate public.teams,public.attempts,private.audit_log,private.requests,private.academic_candidates,private.academic_audit,public.academic_results cascade; update private.academic_state set version=0; update public.academic_publication set version=0,published_at=null",
+    "reset role; update private.award_settings set quota=null,merit_quota=0,revision=0,publication_id=null where true; delete from private.award_publications where true; truncate public.teams,public.attempts,private.audit_log,private.requests,private.academic_candidates,private.academic_audit,public.academic_results cascade; update private.academic_state set version=0; update public.academic_publication set version=0,published_at=null",
   );
 });
 async function academicSetup() {
@@ -130,6 +131,159 @@ async function rpcResult(name: string, args: unknown[] = []) {
     )
   ).rows[0].value;
 }
+describe("名次名額與佳作名額", () => {
+  async function entrants(times = [10, 11, 12, 13, 14, 15]) {
+    const ids: string[] = [];
+    for (const [i, seconds] of times.entries()) {
+      const id = await createTeam(
+        "program",
+        `程A${String(i + 1).padStart(3, "0")}`,
+      );
+      ids.push(id);
+      await submit(
+        input(id, "program", "round-1", { completed: 1, seconds, weight: 300 }),
+      );
+    }
+    return ids;
+  }
+  const publish = (p: any) =>
+    rpcResult("publish_awards", [
+      "program",
+      1,
+      p.version,
+      p.settings_revision,
+      crypto.randomUUID(),
+    ]);
+
+  it("前三名加兩位佳作；公開不含佳作順位，未得獎者不公開名次", async () => {
+    const ids = await entrants();
+    await rpcResult("set_award_quotas", ["program", 1, 3, 2, 0]);
+    expect(await rpcResult("get_awards")).toEqual([]);
+    const p = await rpcResult("preview_awards", ["program", 1]);
+    expect(p).toMatchObject({
+      quota: 3,
+      merit_quota: 2,
+      boundary_conflict: false,
+    });
+    expect(p.entries.map((e: any) => e.award_type)).toEqual([
+      "rank",
+      "rank",
+      "rank",
+      "merit",
+      "merit",
+    ]);
+    const saved = await publish(p);
+    expect(saved.merit_quota).toBe(2);
+    await asUser(null, "anon");
+    const awards = await rpcResult("get_awards");
+    expect(awards.map((a: any) => a.rank)).toEqual([1, 2, 3, null, null]);
+    expect(
+      awards
+        .filter((a: any) => a.award_type === "merit")
+        .map((a: any) => a.team_id),
+    ).toEqual(ids.slice(3, 5));
+    expect(awards.some((a: any) => a.team_id === ids[5])).toBe(false);
+    expect(
+      (await rpcResult("get_scoreboard")).results.every(
+        (r: any) => r.rank === null,
+      ),
+    ).toBe(true);
+    await asUser(admin);
+    await submit(
+      input(ids[5], "program", "round-2", {
+        completed: 1,
+        seconds: 5,
+        weight: 300,
+      }),
+    );
+    await rpcResult("set_award_quotas", ["program", 1, 2, 3, 1]);
+    expect(await rpcResult("get_awards")).toEqual(awards);
+  });
+  it("同分跨越名次與佳作分界時，即使總人數符合也不能公布", async () => {
+    await entrants([10, 11, 12, 12, 14]);
+    await rpcResult("set_award_quotas", ["program", 1, 3, 2, 0]);
+    const p = await rpcResult("preview_awards", ["program", 1]);
+    expect(p.entries).toHaveLength(5);
+    expect(p.boundary_conflict).toBe(true);
+    await expect(publish(p)).rejects.toThrow("同名次");
+    const all = await rpcResult("preview_all_awards");
+    await expect(
+      rpcResult("publish_all_awards", [all.version, crypto.randomUUID()]),
+    ).rejects.toThrow("同名次");
+    expect(await rpcResult("get_awards")).toEqual([]);
+  });
+  it("同分超過佳作尾端名額不能公布；佳作人數不足不補入無成績者", async () => {
+    await entrants([10, 11, 12, 12]);
+    await createTeam("program", "程A005");
+    await rpcResult("set_award_quotas", ["program", 1, 1, 2, 0]);
+    const p = await rpcResult("preview_awards", ["program", 1]);
+    expect(p.boundary_conflict).toBe(true);
+    await expect(publish(p)).rejects.toThrow("同名次");
+    await rpcResult("set_award_quotas", ["program", 1, 1, 5, 1]);
+    const allowed = await rpcResult("preview_awards", ["program", 1]);
+    expect(allowed.entries).toHaveLength(4);
+    expect(allowed.boundary_conflict).toBe(false);
+    await publish(allowed);
+  });
+  it("可只設佳作，統一公告保持分梯次與重試安全", async () => {
+    await entrants([10, 11]);
+    const other = await createTeam("program", "程B001", 2);
+    await submit(
+      input(other, "program", "round-1", {
+        completed: 1,
+        seconds: 8,
+        weight: 300,
+      }),
+    );
+    await rpcResult("set_award_quotas", ["program", 1, 0, 2, 0]);
+    await rpcResult("set_award_quotas", ["program", 2, 1, 0, 0]);
+    const p = await rpcResult("preview_all_awards");
+    const args = [p.version, crypto.randomUUID()];
+    const saved = await rpcResult("publish_all_awards", args);
+    expect(saved.map((s: any) => s.merit_quota)).toEqual([2, 0]);
+    expect(await rpcResult("publish_all_awards", args)).toEqual(saved);
+    const awards = await rpcResult("get_awards");
+    expect(
+      awards
+        .filter((a: any) => a.heat === 1)
+        .every((a: any) => a.rank === null && a.award_type === "merit"),
+    ).toBe(true);
+    expect(awards.find((a: any) => a.team_id === other)).toMatchObject({
+      rank: 1,
+      award_type: "rank",
+    });
+  });
+  it("新名額接口保留權限、版本及合法範圍檢查，舊接口不抹除佳作", async () => {
+    await asUser(admin);
+    for (const pair of [
+      [null, 2],
+      [2, null],
+      [-1, 2],
+      [0, 0],
+      [300, 300],
+    ])
+      await expect(
+        rpcResult("set_award_quotas", ["program", 1, ...pair, 0]),
+      ).rejects.toThrow("名額");
+    await rpcResult("set_award_quotas", ["program", 1, 3, 2, 0]);
+    await expect(
+      rpcResult("set_award_quotas", ["program", 1, 3, 3, 0]),
+    ).rejects.toThrow("已更新");
+    await rpcResult("set_award_quota", ["program", 1, 4, 1]);
+    expect(
+      (await rpcResult("get_award_settings")).find(
+        (s: any) => s.category_id === "program" && s.heat === 1,
+      ),
+    ).toMatchObject({ quota: 4, merit_quota: 2 });
+    for (const id of [judge, checkin, outsider]) {
+      await asUser(id);
+      await expect(
+        rpcResult("set_award_quotas", ["program", 1, 3, 2, 2]),
+      ).rejects.toThrow("權限");
+    }
+  });
+});
+
 describe("挑戰賽新版規則、飲料與公告", () => {
   it("正式回滾驗證腳本可執行且不保留測試資料", async () => {
     await db.exec("reset role");

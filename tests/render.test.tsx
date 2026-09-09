@@ -7,9 +7,25 @@ import { ImportPanel } from "../src/ImportPanel";
 import { categories, type Team } from "../src/domain";
 import AcademicApp, { AcademicLevelTabs } from "../src/AcademicApp";
 import { CategoryTabs } from "../src/CategoryTabs";
+import { AwardPanel } from "../src/ChallengeStaffTools";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("非瀏覽器渲染檢查", () => {
+  it("公告表單分開顯示兩種名額，保留預覽及統一公告", () => {
+    const html = renderToString(
+      <AwardPanel
+        categoryId="program"
+        disabled={false}
+        onPublished={async () => {}}
+      />,
+    );
+    expect(html).toContain("名次名額");
+    expect(html).toContain("佳作名額");
+    expect(html).not.toContain("官方確認的獎狀名額");
+    expect(html).toContain("預覽公告名單");
+    expect(html).toContain("預覽全賽事統一公告");
+    expect(html).toContain("不設某獎項請填 0");
+  });
   it("家長入口可渲染且示範模式清楚標示", () => {
     vi.stubGlobal("location", { hash: "#/" });
     vi.stubGlobal("navigator", { onLine: true });

@@ -18,7 +18,8 @@ export type ServerResult = {
 };
 export type PublishedAward = {
   team_id: string;
-  rank: number;
+  rank: number | null;
+  award_type?: "rank" | "merit";
   published_at: string;
   category_id: CategoryId;
   heat: number;

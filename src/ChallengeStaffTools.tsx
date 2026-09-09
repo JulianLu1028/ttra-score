@@ -12,6 +12,7 @@ import {
 import { supabase } from "./supabase";
 import { academicRequest } from "./academic-request";
 import { categories, heatNumbers, type CategoryId, type Team } from "./domain";
+import { awardLabel, validAwardQuotas } from "./award-display";
 
 async function rpc<T>(
   name: string,
@@ -147,6 +148,7 @@ type Setting = {
   category_id: CategoryId;
   heat: number;
   quota: number | null;
+  merit_quota: number;
   revision: number;
   published_at: string | null;
 };
@@ -154,10 +156,14 @@ type AwardPreview = {
   version: number;
   settings_revision: number;
   quota: number;
+  merit_quota: number;
+  boundary_conflict?: boolean;
   groups?: {
     category_id: CategoryId;
     heat: number;
     quota: number;
+    merit_quota: number;
+    boundary_conflict: boolean;
     entries: AwardPreview["entries"];
   }[];
   entries: {
@@ -167,6 +173,7 @@ type AwardPreview = {
     number: string;
     name: string;
     rank: number;
+    award_type: "rank" | "merit";
     primary_score: number;
     secondary_score: number | null;
     qualified: boolean;
@@ -185,6 +192,7 @@ export function AwardPanel({
   const [heat, setHeat] = useState(1);
   const [settings, setSettings] = useState<Setting[]>([]);
   const [quota, setQuota] = useState("");
+  const [meritQuota, setMeritQuota] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -194,11 +202,14 @@ export function AwardPanel({
   const blockedPreview =
     !preview?.entries.length ||
     (preview.groups ?? [preview]).some(
-      (g) => !g.entries.length || g.entries.length > g.quota,
+      (g) => !g.entries.length || g.boundary_conflict,
     );
   const setting = settings.find(
     (s) => s.category_id === categoryId && s.heat === heat,
   );
+  const unsaved =
+    quota !== (setting?.quota?.toString() ?? "") ||
+    meritQuota !== (setting?.quota == null ? "" : String(setting.merit_quota));
   const reload = useCallback(
     async () => setSettings(await rpc<Setting[]>("get_award_settings")),
     [],
@@ -218,10 +229,11 @@ export function AwardPanel({
   }, []);
   useEffect(() => {
     setQuota(setting?.quota?.toString() ?? "");
+    setMeritQuota(setting?.quota == null ? "" : String(setting.merit_quota));
     setPreview(null);
     setConfirmed(false);
     setMessage("");
-  }, [setting?.quota, setting?.revision, heat]);
+  }, [setting?.quota, setting?.merit_quota, setting?.revision, heat]);
   async function action(operation: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -245,7 +257,7 @@ export function AwardPanel({
     <section className="panel form-panel">
       <div className="panel-heading">
         <div>
-          <h2>官方獎狀名次公告</h2>
+          <h2>官方名次與佳作公告</h2>
           <p className="muted">
             {categories.find((c) => c.id === categoryId)?.name} · 各梯次獨立排名
           </p>
@@ -253,7 +265,7 @@ export function AwardPanel({
       </div>
       <div className="form-body">
         <p>
-          瓶數、秒數照常即時公開。只有此處確認公布的得獎名次會顯示在家長端；公布後不會隨登分自動變動。
+          瓶數、秒數照常即時公開。名次與佳作經確認公布後才顯示在家長端，不會隨登分自動變動。
         </p>
         <div className="field-grid">
           <label className="field">
@@ -275,10 +287,10 @@ export function AwardPanel({
             </NativeSelect>
           </label>
           <label className="field">
-            <span>官方確認的獎狀名額</span>
+            <span>名次名額</span>
             <Input
               type="number"
-              min={1}
+              min={0}
               max={500}
               step={1}
               value={quota}
@@ -287,9 +299,23 @@ export function AwardPanel({
               onChange={(e) => setQuota(e.target.value)}
             />
           </label>
+          <label className="field">
+            <span>佳作名額</span>
+            <Input
+              type="number"
+              min={0}
+              max={500}
+              step={1}
+              value={meritQuota}
+              disabled={busy || disabled}
+              placeholder="待官方確認"
+              onChange={(e) => setMeritQuota(e.target.value)}
+            />
+          </label>
         </div>
         <p className="hint">
-          名額尚未確定請保持空白。同名次超過名額時系統會阻止公告，請先取得官方裁定。
+          佳作依成績接續名次獎選取，只顯示「佳作」。不設某獎項請填
+          0；尚未確定請留白。同分跨越名次／佳作或得獎分界時，請先取得官方裁定。
         </p>
         <p>
           {setting?.published_at
@@ -310,16 +336,15 @@ export function AwardPanel({
               disabled ||
               busy ||
               !setting ||
-              !Number.isInteger(Number(quota)) ||
-              Number(quota) < 1 ||
-              Number(quota) > 500
+              !validAwardQuotas(quota, meritQuota)
             }
             onClick={() =>
               void action(async () => {
-                await rpc("set_award_quota", {
+                await rpc("set_award_quotas", {
                   p_category: categoryId,
                   p_heat: heat,
                   p_quota: Number(quota),
+                  p_merit_quota: Number(meritQuota),
                   p_expected_revision: setting!.revision,
                 });
                 await reload();
@@ -330,12 +355,7 @@ export function AwardPanel({
             儲存名額
           </Button>
           <Button
-            disabled={
-              disabled ||
-              busy ||
-              !setting?.quota ||
-              String(setting.quota) !== quota
-            }
+            disabled={disabled || busy || setting?.quota == null || unsaved}
             onClick={() =>
               void action(async () => {
                 const data = await rpc<AwardPreview>("preview_awards", {
@@ -352,13 +372,7 @@ export function AwardPanel({
           </Button>
           <Button
             variant="outline"
-            disabled={
-              disabled ||
-              busy ||
-              !settings.length ||
-              (setting?.quota !== null &&
-                String(setting?.quota ?? "") !== quota)
-            }
+            disabled={disabled || busy || !settings.length || unsaved}
             onClick={() =>
               void action(async () => {
                 const all = await rpc<{
@@ -369,6 +383,10 @@ export function AwardPanel({
                   version: all.version,
                   settings_revision: 0,
                   quota: all.groups.reduce((sum, g) => sum + g.quota, 0),
+                  merit_quota: all.groups.reduce(
+                    (sum, g) => sum + g.merit_quota,
+                    0,
+                  ),
                   groups: all.groups,
                   entries: all.groups.flatMap((g) =>
                     g.entries.map((e) => ({
@@ -410,25 +428,27 @@ export function AwardPanel({
           <DialogTitle>
             {preview?.groups
               ? "確認全賽事統一公告"
-              : `確認第 ${heat} 梯得獎名次`}
+              : `確認第 ${heat} 梯名次與佳作`}
           </DialogTitle>
           <DialogDescription>
-            請確認官方已核定名額、同名次及合格資格。這不是即時暫定排名，按公布後家長就會看到以下名次。
+            請確認官方已核定兩種名額、同名次及合格資格。按公布後，家長就會看到以下名次或佳作。
           </DialogDescription>
           <p>
-            名額 {preview?.quota} 人 · 本次公告 {preview?.entries.length} 人
+            名次名額 {preview?.quota} 人 · 佳作名額 {preview?.merit_quota} 人 ·
+            本次公告 {preview?.entries.length} 人
           </p>
           {preview?.groups?.map((g) => (
             <small key={`${g.category_id}-${g.heat}`}>
               {categories.find((c) => c.id === g.category_id)?.name} · 第{" "}
-              {g.heat} 梯：名額 {g.quota} 人，公告 {g.entries.length} 人
+              {g.heat} 梯：名次 {g.quota} 人、佳作 {g.merit_quota} 人，公告{" "}
+              {g.entries.length} 人
             </small>
           ))}
           <div className="award-preview">
             {preview?.entries.map((entry) => (
               <div key={entry.team_id}>
                 <strong>
-                  第 {entry.rank} 名 · {entry.number} {entry.name}
+                  {awardLabel(entry)} · {entry.number} {entry.name}
                 </strong>
                 <span>
                   {entry.primary_score}{" "}
@@ -447,11 +467,9 @@ export function AwardPanel({
             ))}
           </div>
           {preview &&
-            (preview.groups ?? [preview]).some(
-              (g) => g.entries.length > g.quota,
-            ) && (
+            (preview.groups ?? [preview]).some((g) => g.boundary_conflict) && (
               <p role="alert" className="error-message">
-                同名次超過名額，請先由官方確認名額後再公布。
+                同名次跨越名次／佳作或得獎名額分界，請先由官方確認名額後再公布。
               </p>
             )}
           {preview &&
@@ -465,7 +483,7 @@ export function AwardPanel({
               disabled={busy}
               onChange={(e) => setConfirmed(e.target.checked)}
             />{" "}
-            已取得官方確認，以上名次及獎狀資格正確
+            已取得官方確認，以上名次、佳作及獎狀資格正確
           </label>
           {error && (
             <p role="alert" className="error-message">
@@ -500,15 +518,15 @@ export function AwardPanel({
                   setPreview(null);
                   await reload();
                   await onPublished();
-                  setMessage("得獎名次已公告。");
+                  setMessage("名次與佳作已公告。");
                 })
               }
             >
               {busy
                 ? "處理中…"
                 : preview?.groups
-                  ? "確認統一公布名次"
-                  : "確認公布本梯名次"}
+                  ? "確認統一公布名次與佳作"
+                  : "確認公布本梯名次與佳作"}
             </Button>
           </DialogFooter>
         </DialogContent>

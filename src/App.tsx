@@ -67,6 +67,7 @@ import { STAFF_LOGIN_ID, staffAuthPassword } from "./runtime-config";
 import { ScoreForm } from "./ScoreForm";
 import { ImportPanel } from "./ImportPanel";
 import { CategoryTabs } from "./CategoryTabs";
+import { awardLabel } from "./award-display";
 import {
   AwardPanel,
   DrinkControl,
@@ -1093,14 +1094,13 @@ export default function App() {
                                             (a) => a.team_id === r.team.id,
                                           ) && (
                                             <span className="award-badge">
-                                              官方第{" "}
-                                              {
+                                              官方
+                                              {awardLabel(
                                                 awards.find(
                                                   (a) =>
                                                     a.team_id === r.team.id,
-                                                )!.rank
-                                              }{" "}
-                                              名
+                                                )!,
+                                              )}
                                             </span>
                                           )}
                                       </div>
