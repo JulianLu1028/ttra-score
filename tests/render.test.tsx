@@ -40,6 +40,10 @@ describe("非瀏覽器渲染檢查", () => {
     vi.stubGlobal("localStorage", { getItem: () => null });
     const html = renderToString(<App />);
     expect(html).toContain("挑戰賽工作台");
+    expect(html).toContain("本組參賽人數");
+    expect(html).toContain('class="staff-tabs"');
+    expect(html).toContain("裁判計分");
+    expect(html).toContain("寶礦力水得足球世界盃");
     expect(html).toContain('aria-label="第 1 梯名單"');
     expect(html).toContain('aria-label="第 2 梯名單"');
     expect(html).toContain("本梯次排名");

@@ -428,6 +428,7 @@ export default function App() {
   const canUseWorkspace = Boolean(
     staff && (isDemoMode || (session && !authLoading)),
   );
+  const isScoring = route === "staff" && selected !== null;
   async function checkin(t: Team, status: CheckinStatus) {
     setCheckinBusy(t.id);
     setError("");
@@ -634,7 +635,7 @@ export default function App() {
         )}
         {(route === "public" || canUseWorkspace) && (
           <>
-            {route === "staff" && (
+            {route === "staff" && !isScoring && (
               <>
                 <section className="stats">
                   <div>
@@ -681,7 +682,7 @@ export default function App() {
                 </p>
               </>
             )}
-            {route === "staff" && (
+            {route === "staff" && !isScoring && (
               <div className="staff-tabs">
                 {canScore && (
                   <Button
@@ -796,8 +797,10 @@ export default function App() {
               </section>
             ) : (
               <>
-                <CategoryTabs value={group} onChange={selectCategory} />
-                {selected && route === "staff" ? (
+                {!isScoring && (
+                  <CategoryTabs value={group} onChange={selectCategory} />
+                )}
+                {selected && isScoring ? (
                   <>
                     <Button
                       variant="ghost"
