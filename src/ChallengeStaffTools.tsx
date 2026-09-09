@@ -11,7 +11,14 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "./supabase";
 import { academicRequest } from "./academic-request";
-import { categories, heatNumbers, type CategoryId, type Team } from "./domain";
+import {
+  categories,
+  heatNumbers,
+  type CategoryId,
+  type Team,
+  type CheckinStatus,
+} from "./domain";
+import { CheckCircle2 } from "./icons";
 import { awardLabel, validAwardQuotas } from "./award-display";
 
 async function rpc<T>(
@@ -26,6 +33,83 @@ async function rpc<T>(
   return data as T;
 }
 type Claim = { team_id: string; claimed: boolean; revision: number };
+export function scoreActionLabel(
+  checkedIn: boolean,
+  count: number,
+  total: number,
+) {
+  if (!checkedIn) return "未報到";
+  if (count >= total) return "查看／修改";
+  return count > 0 ? "繼續計分" : "計分";
+}
+
+export function StaffCheckin({
+  team,
+  disabled,
+  busy,
+  hasAttempts,
+  onChange,
+}: {
+  team: Team;
+  disabled: boolean;
+  busy: boolean;
+  hasAttempts: boolean;
+  onChange: (status: CheckinStatus) => void;
+}) {
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const checkedIn = team.checkinStatus === "checked_in";
+  const locked = disabled || busy || (checkedIn && hasAttempts);
+  return (
+    <div className="staff-checkin">
+      <Button
+        variant="outline"
+        className={checkedIn ? "is-checked-in" : "needs-checkin"}
+        disabled={locked}
+        aria-label={`${team.number} ${team.name} ${checkedIn ? "已報到" : "標記已報到"}`}
+        title={
+          checkedIn
+            ? hasAttempts
+              ? "已有成績，不可取消報到"
+              : "點選可取消報到"
+            : "標記已報到"
+        }
+        onClick={() => {
+          if (!locked) {
+            if (checkedIn) setConfirmCancel(true);
+            else onChange("checked_in");
+          }
+        }}
+      >
+        {checkedIn && <CheckCircle2 size={17} aria-hidden="true" />}
+        {busy ? "儲存中…" : checkedIn ? "已報到" : "標記已報到"}
+      </Button>
+      <Dialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <DialogContent>
+          <DialogTitle>取消報到？</DialogTitle>
+          <DialogDescription>
+            {team.number} {team.name} 將恢復為尚未報到，報到時間也會清除。
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmCancel(false)}>
+              保留報到
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={locked || !checkedIn}
+              onClick={() => {
+                if (locked || !checkedIn) return;
+                setConfirmCancel(false);
+                onChange("pending");
+              }}
+            >
+              確認取消報到
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 export function useDrinkClaims(accessKey: string | null) {
   const [claims, setClaims] = useState<Record<string, Claim>>({});
   const [ready, setReady] = useState(false);
@@ -122,17 +206,14 @@ export function DrinkControl({
   return (
     <div className="drink-control">
       <label>
-        <span>飲料</span>
-        <span>
-          <input
-            type="checkbox"
-            aria-label={`${team.number} ${team.name} 飲料已領取`}
-            checked={state.claims[team.id]?.claimed ?? false}
-            disabled={disabled || !state.ready || state.busy[team.id]}
-            onChange={(e) => void state.change(team.id, e.target.checked)}
-          />{" "}
-          已領取
-        </span>
+        <input
+          type="checkbox"
+          aria-label={`${team.number} ${team.name} 飲料已領取`}
+          checked={state.claims[team.id]?.claimed ?? false}
+          disabled={disabled || !state.ready || state.busy[team.id]}
+          onChange={(e) => void state.change(team.id, e.target.checked)}
+        />
+        <span>飲料已領取</span>
       </label>
       {state.busy[team.id] && <small role="status">儲存中…</small>}
       {state.rowErrors[team.id] && (

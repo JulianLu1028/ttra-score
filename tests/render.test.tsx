@@ -7,10 +7,60 @@ import { ImportPanel } from "../src/ImportPanel";
 import { categories, type Team } from "../src/domain";
 import AcademicApp, { AcademicLevelTabs } from "../src/AcademicApp";
 import { CategoryTabs } from "../src/CategoryTabs";
-import { AwardPanel } from "../src/ChallengeStaffTools";
+import {
+  AwardPanel,
+  StaffCheckin,
+  scoreActionLabel,
+} from "../src/ChallengeStaffTools";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("非瀏覽器渲染檢查", () => {
+  it("裁判計分按鈕依回合進度顯示操作", () => {
+    expect(scoreActionLabel(false, 0, 2)).toBe("未報到");
+    expect(scoreActionLabel(true, 0, 2)).toBe("計分");
+    expect(scoreActionLabel(true, 1, 2)).toBe("繼續計分");
+    expect(scoreActionLabel(true, 2, 2)).toBe("查看／修改");
+    expect(scoreActionLabel(true, 2, 4)).toBe("繼續計分");
+    expect(scoreActionLabel(true, 4, 4)).toBe("查看／修改");
+  });
+  it("報到採直接按鈕，已有成績及儲存中不可操作", () => {
+    const team: Team = {
+      id: "test",
+      name: "王小明",
+      number: "機A001",
+      categoryId: "creative",
+      heat: 1,
+      checkinStatus: "pending",
+      checkedInAt: null,
+    };
+    const render = (
+      checkedIn: boolean,
+      hasAttempts: boolean,
+      busy = false,
+      disabled = false,
+    ) =>
+      renderToString(
+        <StaffCheckin
+          team={{
+            ...team,
+            checkinStatus: checkedIn ? "checked_in" : "pending",
+          }}
+          hasAttempts={hasAttempts}
+          busy={busy}
+          disabled={disabled}
+          onChange={() => {}}
+        />,
+      );
+    expect(render(false, false)).toContain("標記已報到");
+    expect(render(false, false)).not.toContain("<select");
+    expect(render(false, false)).not.toContain('disabled=""');
+    expect(render(true, false)).not.toContain('disabled=""');
+    expect(render(true, true)).toContain('disabled=""');
+    expect(render(true, true)).toContain("已有成績，不可取消報到");
+    expect(render(false, false, true)).toContain("儲存中…");
+    expect(render(false, false, true)).toContain('disabled=""');
+    expect(render(false, false, false, true)).toContain('disabled=""');
+  });
   it("已公布名次與佳作放在姓名左側，移除官方字樣", () => {
     for (const [award, label] of [
       [{ rank: 1, award_type: "rank" }, "第 1 名"],

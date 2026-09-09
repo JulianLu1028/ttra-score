@@ -71,6 +71,8 @@ import { awardLabel } from "./award-display";
 import {
   AwardPanel,
   DrinkControl,
+  StaffCheckin,
+  scoreActionLabel,
   useDrinkClaims,
 } from "./ChallengeStaffTools";
 import { downloadCSV } from "./csv";
@@ -1029,15 +1031,6 @@ export default function App() {
                                       className={`score-row${highlighted === r.team.id ? " returned-participant" : ""}`}
                                       key={r.team.id}
                                     >
-                                      {route === "staff" && (
-                                        <strong className="rank">
-                                          {group === "preschool"
-                                            ? "—"
-                                            : r.rank
-                                              ? String(r.rank).padStart(2, "0")
-                                              : "—"}
-                                        </strong>
-                                      )}
                                       <button
                                         className="team-cell"
                                         onClick={() => setDetail(r.team)}
@@ -1060,7 +1053,12 @@ export default function App() {
                                             {r.team.number}
                                           </span>
                                           {route === "staff" &&
-                                            ` · 第 ${r.team.heat} 梯`}
+                                            group !== "preschool" &&
+                                            r.rank != null && (
+                                              <span className="staff-rank">
+                                                第 {r.rank} 名
+                                              </span>
+                                            )}
                                           {route === "public" && arrivedAt && (
                                             <time
                                               className="checkin-time"
@@ -1074,34 +1072,19 @@ export default function App() {
                                         </small>
                                       </button>
                                       {route === "staff" && (
-                                        <label className="checkin-control">
-                                          <span>報到</span>
-                                          <NativeSelect
-                                            aria-label={
-                                              r.team.name + " 報到狀態"
-                                            }
-                                            disabled={
-                                              !online ||
-                                              checkinBusy === r.team.id ||
-                                              !canCheck ||
-                                              !inScope(r.team)
-                                            }
-                                            value={r.team.checkinStatus}
-                                            onChange={(e) =>
-                                              void checkin(
-                                                r.team,
-                                                e.target.value as CheckinStatus,
-                                              )
-                                            }
-                                          >
-                                            <option value="pending">
-                                              尚未報到
-                                            </option>
-                                            <option value="checked_in">
-                                              已報到
-                                            </option>
-                                          </NativeSelect>
-                                        </label>
+                                        <StaffCheckin
+                                          team={r.team}
+                                          busy={checkinBusy === r.team.id}
+                                          hasAttempts={attemptCount > 0}
+                                          disabled={
+                                            !online ||
+                                            !canCheck ||
+                                            !inScope(r.team)
+                                          }
+                                          onChange={(status) =>
+                                            void checkin(r.team, status)
+                                          }
+                                        />
                                       )}
                                       <div className="result-status">
                                         <span
@@ -1155,7 +1138,7 @@ export default function App() {
                                       {route === "staff" ? (
                                         canScore && (
                                           <Button
-                                            variant="outline"
+                                            className="staff-score-action"
                                             disabled={
                                               !inScope(r.team) ||
                                               r.team.checkinStatus !==
@@ -1163,10 +1146,12 @@ export default function App() {
                                             }
                                             onClick={() => openScore(r.team)}
                                           >
-                                            {r.team.checkinStatus ===
-                                            "checked_in"
-                                              ? "計分"
-                                              : "未報到"}
+                                            {scoreActionLabel(
+                                              r.team.checkinStatus ===
+                                                "checked_in",
+                                              attemptCount,
+                                              slotOptions(group).length,
+                                            )}
                                             <ChevronRight size={14} />
                                           </Button>
                                         )
