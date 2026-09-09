@@ -192,6 +192,8 @@ it("學科裁判入口與家長入口使用相同的獨立配色", () => {
   const html = renderToString(<AcademicApp staffView={true} />);
   expect(html).toContain('class="academic-theme academic-shell"');
   expect(html).toContain("學科成績工作台");
+  expect(html).toContain("最近 10 筆");
+  expect(html).not.toContain("最近 200 筆");
   expect(html).toContain("公布全部等級已登錄的成績");
   expect(html).toContain("機581115100401");
   expect(html).not.toContain("E101");

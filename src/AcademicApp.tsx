@@ -684,12 +684,12 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
             <section className="panel academic-audit">
               <div className="panel-heading">
                 <h2>登分與公布紀錄</h2>
-                <span>最近 200 筆</span>
+                <span>最近 10 筆</span>
               </div>
               {!workspace?.audit.length && (
                 <p className="empty-state">尚無紀錄</p>
               )}
-              {workspace?.audit.map((a) => (
+              {workspace?.audit.slice(0, 10).map((a) => (
                 <details className="audit-row" key={a.id}>
                   <summary>
                     <strong>{a.number || "全部學科成績"}</strong>
