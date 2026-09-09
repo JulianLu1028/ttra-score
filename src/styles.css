@@ -1231,6 +1231,9 @@ footer {
   .public-page .score-row > button[data-slot="button"] {
     align-self: start;
   }
+  .public-page .score-row:not(:last-child) {
+    border-bottom: 2px solid #94a89b;
+  }
   .public-page .public-result {
     border-top: 1px solid #edf0e9;
     padding-top: 10px;
