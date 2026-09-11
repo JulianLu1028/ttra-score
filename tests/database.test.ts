@@ -95,6 +95,7 @@ beforeAll(async () => {
     "009_challenge_attempt_rules.sql",
     "010_rewards_and_award_publication.sql",
     "011_rank_and_merit_awards.sql",
+    "012_academic_public_privacy.sql",
   ])
     await db.exec(
       readFileSync(
@@ -729,7 +730,11 @@ describe("學科私有登分與公開快照資料庫", () => {
     ).toHaveLength(1);
     await asUser(null, "anon");
     const published = await academicPublic();
-    expect(published.results.map((c: any) => c.score)).toEqual([0, 100]);
+    expect(published.results.map((c: any) => c.passed)).toEqual([false, true]);
+    expect(published.results.map((c: any) => c.name)).toEqual([
+      "陳o安",
+      "林o晴",
+    ]);
     expect(
       new Set(published.results.map((c: any) => c.published_at)).size,
     ).toBe(1);
@@ -737,12 +742,26 @@ describe("學科私有登分與公開快照資料庫", () => {
       "id",
       "name",
       "number",
+      "passed",
       "published_at",
-      "score",
     ]);
     await expect(
       db.query("update public.academic_results set score=1"),
     ).rejects.toThrow("permission denied");
+    for (const [id, role] of [
+      [null, "anon"],
+      [outsider, "authenticated"],
+      [examiner, "authenticated"],
+    ] as const) {
+      await asUser(id, role);
+      await expect(
+        db.query("select name,score from public.academic_results"),
+      ).rejects.toThrow("permission denied");
+      expect((await academicPublic()).results[0]).not.toHaveProperty("score");
+    }
+    const staff = await academicWorkspace();
+    expect(staff.candidates[0].name).toBe("陳宥安");
+    expect(staff.candidates[0].published_score).toBe(0);
   });
   it("修改留在草稿，再次公布才更新；过期确认不接受", async () => {
     const w = await academicSetup();
@@ -759,14 +778,14 @@ describe("學科私有登分與公開快照資料庫", () => {
       ready.version,
       crypto.randomUUID(),
     ]);
-    await academicSave(ready.candidates[0], 90);
-    expect((await academicPublic()).results[0].score).toBe(80);
+    await academicSave(ready.candidates[0], 79.9);
+    expect((await academicPublic()).results[0].passed).toBe(true);
     const revised = await academicWorkspace();
     await db.query("select public.publish_academic($1,$2)", [
       revised.version,
       crypto.randomUUID(),
     ]);
-    expect((await academicPublic()).results[0].score).toBe(90);
+    expect((await academicPublic()).results[0].passed).toBe(false);
   });
   it("分數邊界、重送及版本衝突由後端驗證", async () => {
     const w = await academicSetup();

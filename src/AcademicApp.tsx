@@ -770,7 +770,7 @@ export default function AcademicApp({ staffView }: { staffView: boolean }) {
                         <TableCell>{r.number}</TableCell>
                         <TableCell>{r.name}</TableCell>
                         <TableCell>
-                          <strong>{r.score} 分</strong>
+                          <strong>{r.passed ? "合格" : "不合格"}</strong>
                         </TableCell>
                       </TableRow>
                     ))}

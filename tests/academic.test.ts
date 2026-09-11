@@ -8,8 +8,32 @@ import {
   AcademicDemoStore,
   academicScore,
   parseAcademicCSV,
+  publicAcademicResult,
 } from "../src/academic";
 describe("學科登分與手動公布", () => {
+  it("家長只取得遮罩姓名與合格結果，80 分含以上合格", () => {
+    for (const score of [0, 79.9, 80, 100]) {
+      const result = publicAcademicResult({
+        id: "test",
+        number: "機581115100401",
+        name: "王小明",
+        score,
+        published_at: "2026-10-04T02:00:00Z",
+      });
+      expect(result.name).toBe("王o明");
+      expect(result.passed).toBe(score >= 80);
+      expect(result).not.toHaveProperty("score");
+    }
+    expect(
+      publicAcademicResult({
+        id: "test",
+        number: "機582115100401",
+        name: "王o明",
+        passed: false,
+        published_at: "2026-10-04T02:00:00Z",
+      }).passed,
+    ).toBe(false);
+  });
   it("兩級編號完整辨識：一級 36 位、二級 11 位，邊界之外不誤判", () => {
     const first = Array.from({ length: 36 }, (_, i) => ({
       number: `機5811151004${String(i + 1).padStart(2, "0")}`,
@@ -103,7 +127,7 @@ describe("學科登分與手動公布", () => {
       null,
     ]);
     store.publish(store.readWorkspace().version, "publish-1");
-    expect(store.readPublic().results.map((c) => c.score)).toEqual([0]);
+    expect(store.readPublic().results.map((c) => c.passed)).toEqual([false]);
   });
   it("更正不更動已公開快照，重複公布不新增紀錄", () => {
     const store = new AcademicDemoStore([{ number: "001", name: "陳宥安" }]);
@@ -123,14 +147,16 @@ describe("學科登分與手動公布", () => {
     ).toHaveLength(1);
     store.save({
       id,
-      score: 90,
+      score: 79.9,
       reason: "複核",
       expected_revision: 1,
       request_id: "s2",
     });
-    expect(store.readPublic().results[0].score).toBe(80);
+    expect(store.readPublic().results[0].passed).toBe(true);
+    expect(store.readWorkspace().candidates[0].score).toBe(79.9);
+    expect(store.readWorkspace().candidates[0].published_score).toBe(80);
     store.publish(store.readWorkspace().version, "p2");
-    expect(store.readPublic().results[0].score).toBe(90);
+    expect(store.readPublic().results[0].passed).toBe(false);
   });
   it("拒絕過期確認及衝突寫入，請求重送只寫入一次", () => {
     const store = new AcademicDemoStore([{ number: "001", name: "陳宥安" }]);

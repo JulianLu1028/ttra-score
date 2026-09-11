@@ -1,6 +1,7 @@
 import { parseCSV } from "./csv";
 import { isDemoMode, supabase } from "./supabase";
 import { academicRequest } from "./academic-request";
+import { maskParticipantName } from "./domain";
 import {
   academicLevel,
   academicLevels,
@@ -19,9 +20,37 @@ export type AcademicCandidate = AcademicRosterRow & {
 };
 export type AcademicResult = AcademicRosterRow & {
   id: string;
-  score: number;
+  passed: boolean;
   published_at: string;
 };
+// Also accepts the previous RPC shape during the staged frontend/backend update.
+// Never retain exact grades or full names in the parent-facing data model.
+export function publicAcademicResult(
+  row: AcademicRosterRow & {
+    id: string;
+    published_at: string;
+    passed?: boolean;
+    score?: number;
+  },
+): AcademicResult {
+  const passed =
+    typeof row.passed === "boolean"
+      ? row.passed
+      : typeof row.score === "number" &&
+          Number.isFinite(row.score) &&
+          row.score >= 0 &&
+          row.score <= 100
+        ? row.score >= 80
+        : null;
+  if (passed === null) throw new Error("成績資料不完整，請重新整理後再試");
+  return {
+    id: row.id,
+    number: row.number,
+    name: maskParticipantName(row.name),
+    passed,
+    published_at: row.published_at,
+  };
+}
 export type AcademicAudit = {
   id: number;
   number?: string;
@@ -171,13 +200,15 @@ export class AcademicDemoStore {
     this.publicSnapshot = {
       version: this.workspace.version,
       publishedAt: stamp,
-      results: graded.map((c) => ({
-        id: c.id,
-        number: c.number,
-        name: c.name,
-        score: c.score!,
-        published_at: stamp,
-      })),
+      results: graded.map((c) =>
+        publicAcademicResult({
+          id: c.id,
+          number: c.number,
+          name: c.name,
+          score: c.score!,
+          published_at: stamp,
+        }),
+      ),
     };
     for (const c of graded) c.published_score = c.score;
     this.workspace.publishedAt = stamp;
@@ -235,7 +266,11 @@ export async function getAcademicPublic(): Promise<AcademicPublic> {
   if (isDemoMode) return demoAcademic.readPublic();
   const { data, error } = await supabase!.rpc("get_academic_results");
   if (error) throw error;
-  return data;
+  return {
+    version: data.version,
+    publishedAt: data.publishedAt,
+    results: data.results.map(publicAcademicResult),
+  };
 }
 export async function importAcademic(rows: AcademicRosterRow[]) {
   if (isDemoMode) return demoAcademic.import(rows);
